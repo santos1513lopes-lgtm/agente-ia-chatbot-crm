@@ -922,7 +922,8 @@
           </div>
           <div class="form-group">
             <label for="condItemMaterial">Material</label>
-            <input type="text" id="condItemMaterial" placeholder="Apostila Turma A">
+            <input type="text" id="condItemMaterial" list="materiaisCondOpcoes" placeholder="Apostila Turma A">
+            <datalist id="materiaisCondOpcoes"></datalist>
           </div>
         </div>
         <div class="form-group">
@@ -951,6 +952,7 @@
         </div>
         <div class="schedule-actions">
           <button class="btn btn-primary" id="adicionarCondItem">Adicionar na tabela</button>
+          <button class="btn btn-success" id="adicionarOutroMaterial">+ Adicionar outro material</button>
           <button class="btn btn-small" id="limparCondItem" style="background:#475569; color:white;">Limpar formulário</button>
         </div>
       </div>
@@ -1255,6 +1257,15 @@
       renderCondTabela();
     }
 
+    function atualizarSugestoesMateriaisCond(rows = null) {
+      const datalist = $('materiaisCondOpcoes');
+      if (!datalist) return;
+      const sourceRows = rows || lerLinhasCondicionais();
+      const materiais = [...new Set(sourceRows.map(row => (row.material || '').trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      datalist.innerHTML = materiais.map(material => `<option value="${escapeHtml(material)}"></option>`).join('');
+    }
+
     function preencherFormularioCondItem(row) {
       $('condItemNome').value = row.nome || '';
       $('condItemMatricula').value = row.matricula || '';
@@ -1299,6 +1310,7 @@
       const target = $('condTabela');
       if (!target) return;
       const rows = lerLinhasCondicionais();
+      atualizarSugestoesMateriaisCond(rows);
       if (!rows.length) {
         target.innerHTML = '<div class="empty-state">Nenhum aluno/material cadastrado ainda. Use o botão verde para adicionar.</div>';
         return;
@@ -1419,6 +1431,42 @@
       limparFormularioCondItem();
       fecharModalCondItem();
       alert('Aluno/material salvo na tabela.');
+    }
+
+    function adicionarOutroMaterialCondicional() {
+      const row = coletarFormularioCondItem();
+      if (!row.nome) {
+        alert('Informe o nome antes de adicionar materiais.');
+        return;
+      }
+      if (!row.material && !row.link && !row.arquivo && !row.senha && !row.pix) {
+        alert('Informe pelo menos material, link, arquivo, senha ou Pix.');
+        return;
+      }
+      normalizarCsvCondicionalAtual();
+      const rows = lerLinhasCondicionais();
+      if (condEditIndex !== null && rows[condEditIndex]) {
+        rows[condEditIndex] = row;
+        condEditIndex = null;
+      } else {
+        rows.push(row);
+      }
+      escreverLinhasCondicionais(rows);
+
+      const manterNome = row.nome;
+      const manterMatricula = row.matricula;
+      const manterTelefone = row.telefone;
+      $('condItemNome').value = manterNome;
+      $('condItemMatricula').value = manterMatricula;
+      $('condItemTelefone').value = manterTelefone;
+      ['condItemMaterial', 'condItemLink', 'condItemSenha', 'condItemPix', 'condItemMensagemFinal'].forEach(id => {
+        const el = $(id);
+        if (el) el.value = '';
+      });
+      if ($('condItemArquivo')) $('condItemArquivo').value = '';
+      if ($('condItemTitulo')) $('condItemTitulo').textContent = 'Adicionar outro material';
+      if ($('adicionarCondItem')) $('adicionarCondItem').textContent = 'Adicionar na tabela';
+      $('condItemMaterial').focus();
     }
 
     function setTextIfExists(id, value) {
@@ -1576,6 +1624,7 @@
     if ($('fecharCondItem')) $('fecharCondItem').addEventListener('click', fecharModalCondItem);
     if ($('limparCondItem')) $('limparCondItem').addEventListener('click', limparFormularioCondItem);
     if ($('adicionarCondItem')) $('adicionarCondItem').addEventListener('click', adicionarItemCondicional);
+    if ($('adicionarOutroMaterial')) $('adicionarOutroMaterial').addEventListener('click', adicionarOutroMaterialCondicional);
     if ($('condItemNome')) $('condItemNome').addEventListener('change', preencherCondItemPorContato);
     if ($('condDadosCsv')) $('condDadosCsv').addEventListener('input', renderCondTabela);
     if ($('condTabela')) {

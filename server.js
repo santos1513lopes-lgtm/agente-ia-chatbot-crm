@@ -208,56 +208,78 @@ function renderHandoffMessage(template, data) {
   });
 }
 
-function searchConditionalRecord(flow, texto) {
-  const query = normalizeText(texto);
-  if (!query) return null;
-  const rows = parseConditionalRows(flow.dadosCsv || "");
-  const camposBusca = (flow.camposBusca || []).map(normalizeText);
-  return rows.find((row) => {
-    return camposBusca.some((campo) => {
-      const value = normalizeText(row[campo]);
-      return value && (
-        value === query ||
-        value.includes(query) ||
-        query.includes(value) ||
-        tokenMatch(value, query)
-      );
-    });
-  }) || null;
+function rowMatchesConditionalQuery(row, camposBusca, query) {
+  return camposBusca.some((campo) => {
+    const value = normalizeText(row[campo]);
+    return value && (
+      value === query ||
+      value.includes(query) ||
+      query.includes(value) ||
+      tokenMatch(value, query)
+    );
+  });
 }
 
-function findConditionalRecordByText(texto) {
+function searchConditionalRecords(flow, texto) {
+  const query = normalizeText(texto);
+  if (!query) return [];
+  const rows = parseConditionalRows(flow.dadosCsv || "");
+  const camposBusca = (flow.camposBusca || []).map(normalizeText);
+  return rows.filter((row) => rowMatchesConditionalQuery(row, camposBusca, query));
+}
+
+function searchConditionalRecord(flow, texto) {
+  return searchConditionalRecords(flow, texto)[0] || null;
+}
+
+function findConditionalRecordsByText(texto) {
   for (const flow of getConditionalFlows()) {
-    const row = searchConditionalRecord(flow, texto);
-    if (row) return { flow, row };
+    const rows = searchConditionalRecords(flow, texto);
+    if (rows.length) return { flow, rows };
   }
   return null;
 }
 
-async function sendConditionalRecordResponse({ msg, chatId, flow, row, typing }) {
-  const resposta = formatTemplate(flow.respostaEncontrado, row)
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  const arquivoResolvido = resolveConditionalFile(row);
-  const mensagemFinal = formatTemplate(row.mensagemfinal || row.mensagem_final || "", row)
+function findConditionalRecordByText(texto) {
+  const result = findConditionalRecordsByText(texto);
+  return result ? { flow: result.flow, row: result.rows[0] } : null;
+}
+
+async function sendConditionalRecordsResponse({ msg, chatId, flow, rows, typing }) {
+  const validRows = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  if (!validRows.length) return;
+  const finalRow = validRows.find((row) => row.mensagemfinal || row.mensagem_final) || validRows[0];
+  const mensagemFinal = formatTemplate(finalRow.mensagemfinal || finalRow.mensagem_final || "", finalRow)
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
   await typing();
-  let r = null;
-  if (arquivoResolvido.fullPath) {
-    const media = MessageMedia.fromFilePath(arquivoResolvido.fullPath);
-    r = await whatsappClient.sendMessage(chatId, media, resposta ? { caption: resposta } : undefined);
-  } else {
-    r = await msg.reply(resposta || "Encontrei seu cadastro.");
+  for (let index = 0; index < validRows.length; index++) {
+    const row = validRows[index];
+    const resposta = formatTemplate(flow.respostaEncontrado, row)
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    const arquivoResolvido = resolveConditionalFile(row);
+    let r = null;
+    if (arquivoResolvido.fullPath) {
+      const media = MessageMedia.fromFilePath(arquivoResolvido.fullPath);
+      r = await whatsappClient.sendMessage(chatId, media, resposta ? { caption: resposta } : undefined);
+    } else {
+      r = await msg.reply(resposta || "Encontrei seu cadastro.");
+    }
+    silencio.registrarMensagemDoBot(r);
+    if (index < validRows.length - 1) await delay(1000);
   }
-  silencio.registrarMensagemDoBot(r);
 
   if (mensagemFinal) {
     await delay(1000);
     const finalMsg = await whatsappClient.sendMessage(chatId, mensagemFinal);
     silencio.registrarMensagemDoBot(finalMsg);
   }
+}
+
+async function sendConditionalRecordResponse({ msg, chatId, flow, row, typing }) {
+  return sendConditionalRecordsResponse({ msg, chatId, flow, rows: [row], typing });
 }
 
 // Carregar ou criar config
@@ -852,10 +874,10 @@ async function handleMessage(msg) {
     if (estadoAtual && estadoAtual.tipo === "conditional") {
       const flow = getConditionalFlows().find((item) => item.id === estadoAtual.flowId);
       if (flow) {
-        const row = searchConditionalRecord(flow, texto);
-        if (row) {
+        const rows = searchConditionalRecords(flow, texto);
+        if (rows.length) {
           estadosConversa.delete(chatId);
-          await sendConditionalRecordResponse({ msg, chatId, flow, row, typing });
+          await sendConditionalRecordsResponse({ msg, chatId, flow, rows, typing });
           return;
         }
 
@@ -891,13 +913,13 @@ async function handleMessage(msg) {
       return;
     }
 
-    const conditionalRecord = findConditionalRecordByText(texto);
+    const conditionalRecord = findConditionalRecordsByText(texto);
     if (conditionalRecord) {
-      await sendConditionalRecordResponse({
+      await sendConditionalRecordsResponse({
         msg,
         chatId,
         flow: conditionalRecord.flow,
-        row: conditionalRecord.row,
+        rows: conditionalRecord.rows,
         typing,
       });
       return;
