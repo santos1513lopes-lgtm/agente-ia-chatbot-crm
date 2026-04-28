@@ -394,6 +394,37 @@
       opacity: 0.88;
       white-space: pre-wrap;
     }
+    .data-table-wrap {
+      overflow-x: auto;
+      border: 1px solid rgba(148,163,184,0.18);
+      border-radius: 8px;
+      background: rgba(0,0,0,0.18);
+      margin-bottom: 14px;
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 720px;
+      font-size: 0.88rem;
+    }
+    .data-table th,
+    .data-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(148,163,184,0.14);
+      text-align: left;
+      vertical-align: top;
+    }
+    .data-table th {
+      color: #cbd5e1;
+      background: rgba(15,23,42,0.8);
+      font-weight: 700;
+    }
+    .data-table tr:last-child td { border-bottom: 0; }
+    .table-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -648,6 +679,11 @@
           <input type="text" id="contatoTag" placeholder="cliente, lead, suporte...">
         </div>
         <div class="form-group">
+          <label for="contatoLista">Lista/grupo</label>
+          <input type="text" id="contatoLista" list="listasContatosOpcoes" placeholder="Alunos, Instrutores, Clientes...">
+          <datalist id="listasContatosOpcoes"></datalist>
+        </div>
+        <div class="form-group">
           <label for="contatoObs">Observações</label>
           <textarea id="contatoObs" placeholder="Informações importantes sobre este contato"></textarea>
         </div>
@@ -657,8 +693,12 @@
       <div class="card">
         <h2>Importar contatos do Google Sheets</h2>
         <p class="dica">
-          Publique a planilha como CSV e use 3 colunas: coluna A = nome, coluna B = número WhatsApp com DDI/DDD, coluna C = tag opcional. Exemplo: Nome | 557185279135 | Cliente.
+          Publique a planilha como CSV e use: coluna A = nome, coluna B = WhatsApp com DDI/DDD, coluna C = tag opcional. A lista abaixo será aplicada aos contatos importados. Se quiser, use coluna D como lista para substituir este campo.
         </p>
+        <div class="form-group">
+          <label for="contatosCsvLista">Importar para lista/grupo</label>
+          <input type="text" id="contatosCsvLista" list="listasContatosOpcoes" placeholder="Alunos">
+        </div>
         <div class="form-group">
           <label for="contatosCsvUrl">Link CSV publicado</label>
           <input type="url" id="contatosCsvUrl" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?gid=...&single=true&output=csv">
@@ -728,6 +768,19 @@
 
       <div class="card">
         <h2>📣 Envio em massa</h2>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="massaListaFiltro">Filtrar por lista/grupo</label>
+            <select id="massaListaFiltro">
+              <option value="">Todas as listas</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Ações rápidas</label>
+            <button class="btn btn-small" id="selecionarListaMassa" style="background:#475569; color:white;">Selecionar visíveis</button>
+            <button class="btn btn-small" id="limparListaMassa" style="background:#475569; color:white;">Limpar seleção</button>
+          </div>
+        </div>
         <div class="form-group">
           <label>Selecionar contatos</label>
           <div id="listaContatosMassa" class="bulk-list">
@@ -804,6 +857,7 @@
         </div>
         <div class="form-group">
           <label for="condDadosCsv">Lista CSV ou nomes separados por vírgula</label>
+          <div id="condTabela" class="data-table-wrap"></div>
           <textarea id="condDadosCsv" style="min-height:170px;" placeholder="nome,matricula,material,link,senha,pix,arquivo&#10;João Nascimento,12345,Apostila,https://link.com,Senha: 1234,,apostila.pdf&#10;&#10;Ou simples: Ana Lopes, Josué Lopes, João Nascimento"></textarea>
         </div>
         <div class="schedule-actions" style="margin-bottom:14px;">
@@ -823,7 +877,7 @@
     <div class="modal-backdrop" id="condItemModal">
       <div class="modal-card">
         <div class="modal-header">
-          <h2>Adicionar aluno/material</h2>
+          <h2 id="condItemTitulo">Adicionar aluno/material</h2>
           <button class="btn btn-small" id="fecharCondItem" style="background:#475569; color:white;">Fechar</button>
         </div>
         <div class="grid-2">
@@ -871,7 +925,7 @@
           <textarea id="condItemMensagemFinal" placeholder="Qualquer dúvida, fale com um instrutor."></textarea>
         </div>
         <div class="schedule-actions">
-          <button class="btn btn-primary" id="adicionarCondItem">Adicionar na lista CSV</button>
+          <button class="btn btn-primary" id="adicionarCondItem">Adicionar na tabela</button>
           <button class="btn btn-small" id="limparCondItem" style="background:#475569; color:white;">Limpar formulário</button>
         </div>
       </div>
@@ -1095,9 +1149,11 @@
       $('condRespostaOk').value = flow.respostaEncontrado || '';
       $('condRespostaErro').value = flow.respostaNaoEncontrado || '';
       $('condDadosCsv').value = flow.dadosCsv || '';
+      renderCondTabela();
     }
 
     const condCsvHeaders = ['nome', 'matricula', 'telefone', 'material', 'link', 'senha', 'pix', 'arquivo', 'mensagemFinal'];
+    let condEditIndex = null;
 
     function restaurarModeloCondicionalPadrao() {
       if (!confirm('Restaurar os campos de Fluxos Condicionais para o modelo padrão? A lista CSV atual será substituída pelo cabeçalho vazio.')) return;
@@ -1108,6 +1164,7 @@
       $('condRespostaErro').value = 'Não encontrei seu cadastro. Confira se digitou nome e sobrenome corretamente ou aguarde um instrutor.';
       $('condDadosCsv').value = condCsvHeaders.join(',');
       limparFormularioCondItem();
+      renderCondTabela();
     }
 
     function csvEscape(value) {
@@ -1118,6 +1175,128 @@
       return text;
     }
 
+    function condParseCsvLine(line) {
+      const values = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const next = line[i + 1];
+        if (char === '"' && inQuotes && next === '"') {
+          current += '"';
+          i++;
+        } else if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+      return values;
+    }
+
+    function normalizarCabecalhoCond(value) {
+      return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+    }
+
+    function lerLinhasCondicionais() {
+      normalizarCsvCondicionalAtual();
+      const linhas = $('condDadosCsv').value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      if (linhas.length <= 1) return [];
+      const headers = condParseCsvLine(linhas[0]).map(normalizarCabecalhoCond);
+      return linhas.slice(1).map((line) => {
+        const values = condParseCsvLine(line);
+        const row = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || '';
+        });
+        return row;
+      }).filter(row => row.nome || row.matricula || row.telefone);
+    }
+
+    function escreverLinhasCondicionais(rows) {
+      const linhas = [condCsvHeaders.join(',')];
+      rows.forEach((row) => {
+        linhas.push(condCsvHeaders.map(header => csvEscape(row[normalizarCabecalhoCond(header)] || row[header] || '')).join(','));
+      });
+      $('condDadosCsv').value = linhas.join('\n');
+      renderCondTabela();
+    }
+
+    function preencherFormularioCondItem(row) {
+      $('condItemNome').value = row.nome || '';
+      $('condItemMatricula').value = row.matricula || '';
+      $('condItemTelefone').value = row.telefone || '';
+      $('condItemMaterial').value = row.material || '';
+      $('condItemLink').value = row.link || '';
+      $('condItemSenha').value = row.senha || '';
+      $('condItemPix').value = row.pix || '';
+      $('condItemArquivo').value = row.arquivo || '';
+      $('condItemMensagemFinal').value = row.mensagemfinal || '';
+    }
+
+    function coletarFormularioCondItem() {
+      return {
+        nome: $('condItemNome').value.trim(),
+        matricula: $('condItemMatricula').value.trim(),
+        telefone: $('condItemTelefone').value.trim(),
+        material: $('condItemMaterial').value.trim(),
+        link: $('condItemLink').value.trim(),
+        senha: $('condItemSenha').value.trim(),
+        pix: $('condItemPix').value.trim(),
+        arquivo: $('condItemArquivo').value.trim(),
+        mensagemfinal: $('condItemMensagemFinal').value.trim()
+      };
+    }
+
+    function renderCondTabela() {
+      const target = $('condTabela');
+      if (!target) return;
+      const rows = lerLinhasCondicionais();
+      if (!rows.length) {
+        target.innerHTML = '<div class="empty-state">Nenhum aluno/material cadastrado ainda. Use o botão verde para adicionar.</div>';
+        return;
+      }
+      target.innerHTML = `
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Matrícula</th>
+              <th>Material</th>
+              <th>Link/arquivo</th>
+              <th>Mensagem final</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((row, index) => `
+              <tr>
+                <td>${escapeHtml(row.nome)}</td>
+                <td>${escapeHtml(row.matricula || row.telefone)}</td>
+                <td>${escapeHtml(row.material)}</td>
+                <td>${escapeHtml(row.link || row.arquivo)}</td>
+                <td>${escapeHtml(row.mensagemfinal)}</td>
+                <td>
+                  <div class="table-actions">
+                    <button class="btn btn-small btn-primary" data-edit-cond="${index}">Editar</button>
+                    <button class="btn btn-small" style="background:#dc2626; color:white;" data-delete-cond="${index}">Excluir</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
     function normalizarCsvCondicionalAtual() {
       const atual = $('condDadosCsv').value.trim();
       const header = condCsvHeaders.join(',');
@@ -1125,13 +1304,34 @@
         $('condDadosCsv').value = header;
         return;
       }
-      const primeiraLinha = atual.split(/\r?\n/)[0].trim().toLowerCase();
-      if (primeiraLinha !== header.toLowerCase()) {
+      const linhas = atual.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      const primeiraLinha = linhas[0] || '';
+      if (primeiraLinha.toLowerCase() === header.toLowerCase()) return;
+
+      const headersAtuais = condParseCsvLine(primeiraLinha).map(normalizarCabecalhoCond);
+      const temCabecalhoAntigo = headersAtuais.some(item => condCsvHeaders.map(normalizarCabecalhoCond).includes(item));
+      if (temCabecalhoAntigo) {
+        const rows = linhas.slice(1).map((line) => {
+          const values = condParseCsvLine(line);
+          const row = {};
+          headersAtuais.forEach((item, index) => {
+            row[item] = values[index] || '';
+          });
+          return row;
+        });
+        $('condDadosCsv').value = [
+          header,
+          ...rows.map(row => condCsvHeaders.map(item => csvEscape(row[normalizarCabecalhoCond(item)] || '')).join(','))
+        ].join('\n');
+      } else {
         $('condDadosCsv').value = `${header}\n${atual}`;
       }
     }
 
     function limparFormularioCondItem() {
+      condEditIndex = null;
+      if ($('condItemTitulo')) $('condItemTitulo').textContent = 'Adicionar aluno/material';
+      if ($('adicionarCondItem')) $('adicionarCondItem').textContent = 'Adicionar na tabela';
       ['condItemNome', 'condItemMatricula', 'condItemTelefone', 'condItemMaterial', 'condItemLink', 'condItemSenha', 'condItemPix', 'condItemMensagemFinal'].forEach(id => {
         const el = $(id);
         if (el) el.value = '';
@@ -1141,6 +1341,20 @@
 
     function abrirModalCondItem() {
       normalizarCsvCondicionalAtual();
+      condEditIndex = null;
+      if ($('condItemTitulo')) $('condItemTitulo').textContent = 'Adicionar aluno/material';
+      if ($('adicionarCondItem')) $('adicionarCondItem').textContent = 'Adicionar na tabela';
+      $('condItemModal').classList.add('ativo');
+    }
+
+    function abrirModalEditarCondItem(index) {
+      const rows = lerLinhasCondicionais();
+      const row = rows[index];
+      if (!row) return;
+      condEditIndex = index;
+      preencherFormularioCondItem(row);
+      if ($('condItemTitulo')) $('condItemTitulo').textContent = 'Editar aluno/material';
+      if ($('adicionarCondItem')) $('adicionarCondItem').textContent = 'Salvar edição';
       $('condItemModal').classList.add('ativo');
     }
 
@@ -1149,27 +1363,23 @@
     }
 
     function adicionarItemCondicional() {
-      const nome = $('condItemNome').value.trim();
+      const row = coletarFormularioCondItem();
+      const nome = row.nome;
       if (!nome) {
         alert('Informe o nome.');
         return;
       }
       normalizarCsvCondicionalAtual();
-      const values = [
-        nome,
-        $('condItemMatricula').value,
-        $('condItemTelefone').value,
-        $('condItemMaterial').value,
-        $('condItemLink').value,
-        $('condItemSenha').value,
-        $('condItemPix').value,
-        $('condItemArquivo').value,
-        $('condItemMensagemFinal').value
-      ];
-      const line = values.map(csvEscape).join(',');
-      $('condDadosCsv').value = `${$('condDadosCsv').value.trim()}\n${line}`;
+      const rows = lerLinhasCondicionais();
+      if (condEditIndex !== null && rows[condEditIndex]) {
+        rows[condEditIndex] = row;
+      } else {
+        rows.push(row);
+      }
+      escreverLinhasCondicionais(rows);
       limparFormularioCondItem();
-      alert('Aluno/material adicionado na lista CSV.');
+      fecharModalCondItem();
+      alert('Aluno/material salvo na tabela.');
     }
 
     function setTextIfExists(id, value) {
@@ -1327,6 +1537,23 @@
     if ($('fecharCondItem')) $('fecharCondItem').addEventListener('click', fecharModalCondItem);
     if ($('limparCondItem')) $('limparCondItem').addEventListener('click', limparFormularioCondItem);
     if ($('adicionarCondItem')) $('adicionarCondItem').addEventListener('click', adicionarItemCondicional);
+    if ($('condDadosCsv')) $('condDadosCsv').addEventListener('input', renderCondTabela);
+    if ($('condTabela')) {
+      $('condTabela').addEventListener('click', (event) => {
+        const editar = event.target.closest('[data-edit-cond]');
+        const excluir = event.target.closest('[data-delete-cond]');
+        if (editar) {
+          abrirModalEditarCondItem(Number(editar.dataset.editCond));
+          return;
+        }
+        if (excluir) {
+          if (!confirm('Excluir este aluno/material da tabela?')) return;
+          const rows = lerLinhasCondicionais();
+          rows.splice(Number(excluir.dataset.deleteCond), 1);
+          escreverLinhasCondicionais(rows);
+        }
+      });
+    }
     if ($('condItemModal')) {
       $('condItemModal').addEventListener('click', (event) => {
         if (event.target.id === 'condItemModal') fecharModalCondItem();
@@ -1520,10 +1747,12 @@
     const contatoNome = document.getElementById("contatoNome");
     const contatoTelefone = document.getElementById("contatoTelefone");
     const contatoTag = document.getElementById("contatoTag");
+    const contatoLista = document.getElementById("contatoLista");
     const contatoObs = document.getElementById("contatoObs");
     const salvarContato = document.getElementById("salvarContato");
     const listaContatos = document.getElementById("listaContatos");
     const contatosCsvUrl = document.getElementById("contatosCsvUrl");
+    const contatosCsvLista = document.getElementById("contatosCsvLista");
     const importarContatosCsv = document.getElementById("importarContatosCsv");
     const statusImportarContatos = document.getElementById("statusImportarContatos");
     const agContato = document.getElementById("agContato");
@@ -1539,6 +1768,9 @@
     const enviarAgora = document.getElementById("enviarAgora");
     const listaAgendamentos = document.getElementById("listaAgendamentos");
     const listaContatosMassa = document.getElementById("listaContatosMassa");
+    const massaListaFiltro = document.getElementById("massaListaFiltro");
+    const selecionarListaMassa = document.getElementById("selecionarListaMassa");
+    const limparListaMassa = document.getElementById("limparListaMassa");
     const massaLimite = document.getElementById("massaLimite");
     const massaIntervalo = document.getElementById("massaIntervalo");
     const salvarMassa = document.getElementById("salvarMassa");
@@ -1600,6 +1832,7 @@
       contatoNome.value = "";
       contatoTelefone.value = "";
       contatoTag.value = "";
+      contatoLista.value = "";
       contatoObs.value = "";
     }
 
@@ -1648,10 +1881,11 @@
         const nome = (colunas[0] || "").trim();
         const telefone = normalizarTelefone(colunas[1] || "");
         const tag = (colunas[2] || "").trim();
+        const lista = (colunas[3] || "").trim();
         const primeiraColuna = nome.toLowerCase();
         if (!nome || !telefone) continue;
         if (["nome", "aluno", "cliente"].includes(primeiraColuna)) continue;
-        contatos.push({ nome, telefone, tag });
+        contatos.push({ nome, telefone, tag, lista });
       }
       return contatos;
     }
@@ -1670,6 +1904,7 @@
       const nome = contatoNome.value.trim();
       const telefone = normalizarTelefone(contatoTelefone.value);
       const tag = contatoTag.value.trim();
+      const lista = contatoLista.value.trim();
       const observacoes = contatoObs.value.trim();
       if (!nome || !telefone) {
         alert("Informe pelo menos nome e WhatsApp.");
@@ -1683,6 +1918,7 @@
           nome,
           telefone,
           tag,
+          lista,
           observacoes,
           criadoEm: serverTimestamp(),
           atualizadoEm: serverTimestamp()
@@ -1703,6 +1939,7 @@
       contatosCache = contatos;
       window.dashboardState.contatos = contatosCache.length;
       window.atualizarDashboard();
+      renderListasContatos();
       renderOpcoesContatos();
 
       if (!contatos.length) {
@@ -1712,6 +1949,7 @@
 
       listaContatos.innerHTML = contatos.map((contato) => {
         const tag = contato.tag ? `<div class="contact-meta">Tag: ${escapeText(contato.tag)}</div>` : "";
+        const lista = contato.lista ? `<div class="contact-meta">Lista: ${escapeText(contato.lista)}</div>` : "";
         const obs = contato.observacoes ? `<div class="contact-meta">${escapeText(contato.observacoes)}</div>` : "";
         return `
           <div class="contact-item">
@@ -1723,10 +1961,30 @@
               <button class="btn btn-small" style="background:#dc2626; color:white;" data-delete-contato="${contato.id}">Excluir</button>
             </div>
             ${tag}
+            ${lista}
             ${obs}
           </div>
         `;
       }).join("");
+    }
+
+    function obterListasContatos() {
+      return [...new Set(contatosCache.map(contato => (contato.lista || "").trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, "pt-BR"));
+    }
+
+    function renderListasContatos() {
+      const listas = obterListasContatos();
+      const options = listas.map(lista => `<option value="${escapeText(lista)}"></option>`).join("");
+      const datalist = document.getElementById("listasContatosOpcoes");
+      if (datalist) datalist.innerHTML = options;
+      if (massaListaFiltro) {
+        const selecionado = massaListaFiltro.value;
+        massaListaFiltro.innerHTML = `<option value="">Todas as listas</option>` + listas.map(lista => {
+          return `<option value="${escapeText(lista)}">${escapeText(lista)}</option>`;
+        }).join("");
+        massaListaFiltro.value = listas.includes(selecionado) ? selecionado : "";
+      }
     }
 
     function renderOpcoesContatos() {
@@ -1739,15 +1997,20 @@
     }
 
     function renderContatosMassa() {
-      if (!contatosCache.length) {
+      const listaFiltro = massaListaFiltro ? massaListaFiltro.value : "";
+      const contatosVisiveis = listaFiltro
+        ? contatosCache.filter(contato => (contato.lista || "") === listaFiltro)
+        : contatosCache;
+      if (!contatosVisiveis.length) {
         listaContatosMassa.innerHTML = `<div class="empty-state">Cadastre contatos para enviar em massa.</div>`;
         return;
       }
-      listaContatosMassa.innerHTML = contatosCache.map((contato) => {
+      listaContatosMassa.innerHTML = contatosVisiveis.map((contato) => {
+        const lista = contato.lista ? ` · ${escapeText(contato.lista)}` : "";
         return `
           <label class="bulk-contact">
             <input type="checkbox" value="${contato.id}">
-            <span>${escapeText(contato.nome)} - ${escapeText(contato.telefone)}</span>
+            <span>${escapeText(contato.nome)} - ${escapeText(contato.telefone)}${lista}</span>
           </label>
         `;
       }).join("");
@@ -1769,6 +2032,17 @@
     }
 
     salvarContato.addEventListener("click", salvarNovoContato);
+    if (massaListaFiltro) massaListaFiltro.addEventListener("change", renderContatosMassa);
+    if (selecionarListaMassa) selecionarListaMassa.addEventListener("click", () => {
+      listaContatosMassa.querySelectorAll('input[type="checkbox"]').forEach(input => {
+        input.checked = true;
+      });
+    });
+    if (limparListaMassa) limparListaMassa.addEventListener("click", () => {
+      listaContatosMassa.querySelectorAll('input[type="checkbox"]').forEach(input => {
+        input.checked = false;
+      });
+    });
     importarContatosCsv.addEventListener("click", async () => {
       if (!usuarioAtual) {
         alert("Entre no painel antes de importar contatos.");
@@ -1794,6 +2068,7 @@
 
         const contatos = parseContatosCsv(json.csv);
         if (!contatos.length) throw new Error("Nenhum contato válido encontrado. Use coluna A nome, B WhatsApp, C tag opcional.");
+        const listaPadrao = contatosCsvLista.value.trim();
 
         const telefonesExistentes = new Set(contatosCache.map(contato => normalizarTelefone(contato.telefone)));
         let criados = 0;
@@ -1809,6 +2084,7 @@
             nome: contato.nome,
             telefone: contato.telefone,
             tag: contato.tag,
+            lista: contato.lista || listaPadrao,
             observacoes: "Importado do Google Sheets",
             criadoEm: serverTimestamp(),
             atualizadoEm: serverTimestamp()
