@@ -6,11 +6,27 @@
   <title>Agente IA + Chatbot WhatsApp</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --page-bg: #172033;
+      --sidebar-bg: #111827;
+      --panel-bg: #24324a;
+      --panel-soft: #1d2a3f;
+      --panel-raised: #2b3b56;
+      --field-bg: #f8fafc;
+      --field-text: #0f172a;
+      --field-border: #cbd5e1;
+      --text-main: #f8fafc;
+      --text-muted: #cbd5e1;
+      --accent: #7c3aed;
+      --accent-blue: #2563eb;
+      --success: #16a34a;
+      --danger: #dc2626;
+    }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #0f172a;
+      background: var(--page-bg);
       min-height: 100vh;
-      color: #eee;
+      color: var(--text-main);
     }
     .container { max-width: 1180px; margin: 0 auto; }
     .crm-layout {
@@ -26,7 +42,7 @@
       position: sticky;
       top: 0;
       height: 100vh;
-      background: #111827;
+      background: var(--sidebar-bg);
       border-right: 1px solid rgba(255,255,255,0.08);
       padding: 18px 14px;
       display: flex;
@@ -110,11 +126,12 @@
     header p { opacity: 0.8; font-size: 0.95rem; }
     
     .card {
-      background: #1e293b;
+      background: var(--panel-bg);
       border-radius: 8px;
       padding: 24px;
       margin: 20px 0;
-      border: 1px solid rgba(148,163,184,0.18);
+      border: 1px solid rgba(203,213,225,0.18);
+      box-shadow: 0 10px 28px rgba(2,6,23,0.14);
     }
     .card h2 {
       font-size: 1.1rem;
@@ -150,15 +167,19 @@
     .form-group input, .form-group textarea, .form-group select {
       width: 100%;
       padding: 10px 14px;
-      border: 1px solid rgba(255,255,255,0.2);
+      border: 1px solid var(--field-border);
       border-radius: 8px;
-      background: rgba(0,0,0,0.3);
-      color: #fff;
+      background: var(--field-bg);
+      color: var(--field-text);
       font-size: 0.95rem;
     }
     .form-group select { cursor: pointer; }
     .form-group textarea { min-height: 80px; resize: vertical; }
-    .form-group input::placeholder, .form-group textarea::placeholder { color: #888; }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+      outline: 2px solid rgba(124,58,237,0.35);
+      border-color: var(--accent);
+    }
+    .form-group input::placeholder, .form-group textarea::placeholder { color: #64748b; }
     
     .btn {
       padding: 10px 20px;
@@ -170,8 +191,8 @@
       transition: opacity 0.2s;
     }
     .btn:hover { opacity: 0.9; }
-    .btn-primary { background: #3b82f6; color: white; }
-    .btn-success { background: #22c55e; color: white; }
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-success { background: var(--success); color: white; }
     .btn-small { padding: 6px 12px; font-size: 0.85rem; }
     
     .checkbox-group {
@@ -183,7 +204,7 @@
     .checkbox-group input[type="checkbox"] { width: auto; }
     
     .flow-item {
-      background: rgba(0,0,0,0.2);
+      background: var(--panel-soft);
       border-radius: 8px;
       padding: 14px;
       margin-bottom: 12px;
@@ -225,8 +246,8 @@
     .tab-content.ativo { display: block; }
     
     .dica {
-      background: rgba(59, 130, 246, 0.15);
-      border-left: 4px solid #3b82f6;
+      background: rgba(124,58,237,0.16);
+      border-left: 4px solid var(--accent);
       padding: 12px 16px;
       border-radius: 0 8px 8px 0;
       margin: 16px 0;
@@ -258,8 +279,8 @@
     .login-card {
       width: 100%;
       max-width: 380px;
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(255,255,255,0.1);
+      background: var(--panel-bg);
+      border: 1px solid rgba(203,213,225,0.18);
       border-radius: 12px;
       padding: 28px;
     }
@@ -301,7 +322,7 @@
       gap: 12px;
     }
     .contact-item {
-      background: rgba(0,0,0,0.2);
+      background: var(--panel-soft);
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 8px;
       padding: 14px;
@@ -340,7 +361,7 @@
       margin: 20px 0;
     }
     .metric-card {
-      background: #1e293b;
+      background: var(--panel-bg);
       border: 1px solid rgba(148,163,184,0.18);
       border-radius: 8px;
       padding: 18px;
@@ -378,7 +399,7 @@
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 8px;
       padding: 10px;
-      background: rgba(0,0,0,0.18);
+      background: var(--panel-soft);
     }
     .bulk-contact {
       display: flex;
@@ -398,7 +419,7 @@
       overflow-x: auto;
       border: 1px solid rgba(148,163,184,0.18);
       border-radius: 8px;
-      background: rgba(0,0,0,0.18);
+      background: var(--panel-soft);
       margin-bottom: 14px;
     }
     .data-table {
@@ -416,7 +437,7 @@
     }
     .data-table th {
       color: #cbd5e1;
-      background: rgba(15,23,42,0.8);
+      background: var(--panel-raised);
       font-weight: 700;
     }
     .data-table tr:last-child td { border-bottom: 0; }
@@ -440,7 +461,7 @@
       width: min(760px, 100%);
       max-height: 90vh;
       overflow: auto;
-      background: #1e293b;
+      background: var(--panel-bg);
       border: 1px solid rgba(148,163,184,0.25);
       border-radius: 8px;
       padding: 22px;
@@ -687,7 +708,10 @@
           <label for="contatoObs">Observações</label>
           <textarea id="contatoObs" placeholder="Informações importantes sobre este contato"></textarea>
         </div>
-        <button class="btn btn-success" id="salvarContato">Salvar contato</button>
+        <div class="schedule-actions">
+          <button class="btn btn-success" id="salvarContato">Salvar contato</button>
+          <button class="btn btn-small" id="cancelarEdicaoContato" style="display:none; background:#475569; color:white;">Cancelar edição</button>
+        </div>
       </div>
 
       <div class="card">
@@ -1750,6 +1774,7 @@
     const contatoLista = document.getElementById("contatoLista");
     const contatoObs = document.getElementById("contatoObs");
     const salvarContato = document.getElementById("salvarContato");
+    const cancelarEdicaoContato = document.getElementById("cancelarEdicaoContato");
     const listaContatos = document.getElementById("listaContatos");
     const contatosCsvUrl = document.getElementById("contatosCsvUrl");
     const contatosCsvLista = document.getElementById("contatosCsvLista");
@@ -1782,6 +1807,7 @@
     let cancelarEscutaAgendamentos = null;
     let contatosCache = [];
     let agendamentosCache = [];
+    let contatoEditandoId = null;
     let processandoAgendados = false;
     let enviosSilenciados = !!window.enviosSilenciados;
 
@@ -1829,11 +1855,26 @@
     btnSair.addEventListener("click", () => signOut(auth));
 
     function limparFormularioContato() {
+      contatoEditandoId = null;
       contatoNome.value = "";
       contatoTelefone.value = "";
       contatoTag.value = "";
       contatoLista.value = "";
       contatoObs.value = "";
+      salvarContato.textContent = "Salvar contato";
+      if (cancelarEdicaoContato) cancelarEdicaoContato.style.display = "none";
+    }
+
+    function preencherFormularioContato(contato) {
+      contatoEditandoId = contato.id;
+      contatoNome.value = contato.nome || "";
+      contatoTelefone.value = contato.telefone || "";
+      contatoTag.value = contato.tag || "";
+      contatoLista.value = contato.lista || "";
+      contatoObs.value = contato.observacoes || "";
+      salvarContato.textContent = "Salvar edição";
+      if (cancelarEdicaoContato) cancelarEdicaoContato.style.display = "inline-block";
+      contatoNome.focus();
     }
 
     function limparFormularioAgendamento() {
@@ -1913,22 +1954,33 @@
       salvarContato.disabled = true;
       salvarContato.textContent = "Salvando...";
       try {
-        await addDoc(collection(db, "contatos"), {
-          uid: usuarioAtual.uid,
-          nome,
-          telefone,
-          tag,
-          lista,
-          observacoes,
-          criadoEm: serverTimestamp(),
-          atualizadoEm: serverTimestamp()
-        });
+        if (contatoEditandoId) {
+          await updateDoc(doc(db, "contatos", contatoEditandoId), {
+            nome,
+            telefone,
+            tag,
+            lista,
+            observacoes,
+            atualizadoEm: serverTimestamp()
+          });
+        } else {
+          await addDoc(collection(db, "contatos"), {
+            uid: usuarioAtual.uid,
+            nome,
+            telefone,
+            tag,
+            lista,
+            observacoes,
+            criadoEm: serverTimestamp(),
+            atualizadoEm: serverTimestamp()
+          });
+        }
         limparFormularioContato();
       } catch (error) {
         alert("Não foi possível salvar o contato. Confira as regras do Firestore.");
       } finally {
         salvarContato.disabled = false;
-        salvarContato.textContent = "Salvar contato";
+        salvarContato.textContent = contatoEditandoId ? "Salvar edição" : "Salvar contato";
       }
     }
 
@@ -1958,7 +2010,10 @@
                 <div class="contact-name">${escapeText(contato.nome)}</div>
                 <div class="contact-phone">${escapeText(contato.telefone)}</div>
               </div>
-              <button class="btn btn-small" style="background:#dc2626; color:white;" data-delete-contato="${contato.id}">Excluir</button>
+              <div class="table-actions">
+                <button class="btn btn-small btn-primary" data-edit-contato="${contato.id}">Editar</button>
+                <button class="btn btn-small" style="background:#dc2626; color:white;" data-delete-contato="${contato.id}">Excluir</button>
+              </div>
             </div>
             ${tag}
             ${lista}
@@ -2032,6 +2087,7 @@
     }
 
     salvarContato.addEventListener("click", salvarNovoContato);
+    if (cancelarEdicaoContato) cancelarEdicaoContato.addEventListener("click", limparFormularioContato);
     if (massaListaFiltro) massaListaFiltro.addEventListener("change", renderContatosMassa);
     if (selecionarListaMassa) selecionarListaMassa.addEventListener("click", () => {
       listaContatosMassa.querySelectorAll('input[type="checkbox"]').forEach(input => {
@@ -2102,10 +2158,17 @@
       }
     });
     listaContatos.addEventListener("click", async (event) => {
+      const botaoEditar = event.target.closest("[data-edit-contato]");
       const botao = event.target.closest("[data-delete-contato]");
+      if (botaoEditar) {
+        const contato = contatosCache.find(item => item.id === botaoEditar.dataset.editContato);
+        if (contato) preencherFormularioContato(contato);
+        return;
+      }
       if (!botao) return;
       if (!confirm("Excluir este contato?")) return;
       await deleteDoc(doc(db, "contatos", botao.dataset.deleteContato));
+      if (contatoEditandoId === botao.dataset.deleteContato) limparFormularioContato();
     });
 
     function getContatoSelecionado() {
