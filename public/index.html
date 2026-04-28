@@ -907,7 +907,8 @@
         <div class="grid-2">
           <div class="form-group">
             <label for="condItemNome">Nome</label>
-            <input type="text" id="condItemNome" placeholder="Ana Lopes">
+            <input type="text" id="condItemNome" list="contatosCondOpcoes" placeholder="Ana Lopes">
+            <datalist id="contatosCondOpcoes"></datalist>
           </div>
           <div class="form-group">
             <label for="condItemMatricula">Matrícula opcional</label>
@@ -1266,6 +1267,20 @@
       $('condItemMensagemFinal').value = row.mensagemfinal || '';
     }
 
+    function preencherCondItemPorContato() {
+      const nomeDigitado = $('condItemNome').value.trim();
+      if (!nomeDigitado || !window.contatosPainelCache) return;
+      const normalizar = (value) => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+      const contato = window.contatosPainelCache.find(item => normalizar(item.nome) === normalizar(nomeDigitado));
+      if (!contato) return;
+      if (!$('condItemTelefone').value.trim()) $('condItemTelefone').value = contato.telefone || '';
+      if (!$('condItemMaterial').value.trim() && contato.lista) $('condItemMaterial').value = contato.lista;
+    }
+
     function coletarFormularioCondItem() {
       return {
         nome: $('condItemNome').value.trim(),
@@ -1561,6 +1576,7 @@
     if ($('fecharCondItem')) $('fecharCondItem').addEventListener('click', fecharModalCondItem);
     if ($('limparCondItem')) $('limparCondItem').addEventListener('click', limparFormularioCondItem);
     if ($('adicionarCondItem')) $('adicionarCondItem').addEventListener('click', adicionarItemCondicional);
+    if ($('condItemNome')) $('condItemNome').addEventListener('change', preencherCondItemPorContato);
     if ($('condDadosCsv')) $('condDadosCsv').addEventListener('input', renderCondTabela);
     if ($('condTabela')) {
       $('condTabela').addEventListener('click', (event) => {
@@ -1989,6 +2005,7 @@
       snapshot.forEach((item) => contatos.push({ id: item.id, ...item.data() }));
       contatos.sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt-BR"));
       contatosCache = contatos;
+      window.contatosPainelCache = contatosCache;
       window.dashboardState.contatos = contatosCache.length;
       window.atualizarDashboard();
       renderListasContatos();
@@ -2033,6 +2050,14 @@
       const options = listas.map(lista => `<option value="${escapeText(lista)}"></option>`).join("");
       const datalist = document.getElementById("listasContatosOpcoes");
       if (datalist) datalist.innerHTML = options;
+      const contatosDatalist = document.getElementById("contatosCondOpcoes");
+      if (contatosDatalist) {
+        contatosDatalist.innerHTML = contatosCache.map(contato => {
+          const complemento = contato.lista || contato.tag || contato.telefone || "";
+          const label = complemento ? `${contato.nome} - ${complemento}` : contato.nome;
+          return `<option value="${escapeText(contato.nome)}" label="${escapeText(label)}"></option>`;
+        }).join("");
+      }
       if (massaListaFiltro) {
         const selecionado = massaListaFiltro.value;
         massaListaFiltro.innerHTML = `<option value="">Todas as listas</option>` + listas.map(lista => {
