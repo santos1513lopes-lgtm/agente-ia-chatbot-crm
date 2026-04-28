@@ -880,9 +880,9 @@
           <textarea id="condRespostaErro" placeholder="Não encontrei seu cadastro. Confira os dados e tente novamente."></textarea>
         </div>
         <div class="form-group">
-          <label for="condDadosCsv">Lista CSV ou nomes separados por vírgula</label>
+          <label>Alunos e materiais cadastrados</label>
           <div id="condTabela" class="data-table-wrap"></div>
-          <textarea id="condDadosCsv" style="min-height:170px;" placeholder="nome,matricula,material,link,senha,pix,arquivo&#10;João Nascimento,12345,Apostila,https://link.com,Senha: 1234,,apostila.pdf&#10;&#10;Ou simples: Ana Lopes, Josué Lopes, João Nascimento"></textarea>
+          <textarea id="condDadosCsv" style="display:none;" aria-hidden="true" tabindex="-1"></textarea>
         </div>
         <div class="schedule-actions" style="margin-bottom:14px;">
           <button class="btn btn-success" id="abrirCondItem">Adicionar aluno/material por formulário</button>
