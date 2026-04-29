@@ -1266,6 +1266,35 @@
       datalist.innerHTML = materiais.map(material => `<option value="${escapeHtml(material)}"></option>`).join('');
     }
 
+    function condGroupKey(row) {
+      return [
+        normalizarCabecalhoCond(row.nome),
+        normalizarCabecalhoCond(row.matricula),
+        normalizarCabecalhoCond(row.telefone)
+      ].join('|');
+    }
+
+    function agruparLinhasCondicionais(rows) {
+      const groups = [];
+      const map = new Map();
+      rows.forEach((row, index) => {
+        const key = condGroupKey(row);
+        if (!map.has(key)) {
+          const group = {
+            key,
+            nome: row.nome,
+            matricula: row.matricula,
+            telefone: row.telefone,
+            items: []
+          };
+          map.set(key, group);
+          groups.push(group);
+        }
+        map.get(key).items.push({ row, index });
+      });
+      return groups;
+    }
+
     function preencherFormularioCondItem(row) {
       $('condItemNome').value = row.nome || '';
       $('condItemMatricula').value = row.matricula || '';
@@ -1315,30 +1344,39 @@
         target.innerHTML = '<div class="empty-state">Nenhum aluno/material cadastrado ainda. Use o botão verde para adicionar.</div>';
         return;
       }
+      const groups = agruparLinhasCondicionais(rows);
       target.innerHTML = `
         <table class="data-table">
           <thead>
             <tr>
               <th>Nome</th>
               <th>Matrícula</th>
-              <th>Material</th>
-              <th>Link/arquivo</th>
-              <th>Mensagem final</th>
+              <th>Materiais</th>
               <th>Ações</th>
             </tr>
           </thead>
           <tbody>
-            ${rows.map((row, index) => `
+            ${groups.map((group, groupIndex) => `
               <tr>
-                <td>${escapeHtml(row.nome)}</td>
-                <td>${escapeHtml(row.matricula || row.telefone)}</td>
-                <td>${escapeHtml(row.material)}</td>
-                <td>${escapeHtml(row.link || row.arquivo)}</td>
-                <td>${escapeHtml(row.mensagemfinal)}</td>
+                <td>${escapeHtml(group.nome)}</td>
+                <td>${escapeHtml(group.matricula || group.telefone)}</td>
+                <td>
+                  ${group.items.map(({ row, index }, itemIndex) => `
+                    <div class="contact-item" style="margin:0 0 8px; padding:10px;">
+                      <div class="contact-name">Material ${itemIndex + 1}: ${escapeHtml(row.material || row.arquivo || row.link || 'Sem título')}</div>
+                      <div class="contact-meta">${escapeHtml(row.link || row.arquivo || row.senha || row.pix || '')}</div>
+                      ${row.mensagemfinal ? `<div class="contact-meta">Final: ${escapeHtml(row.mensagemfinal)}</div>` : ''}
+                      <div class="table-actions" style="margin-top:8px;">
+                        <button class="btn btn-small btn-primary" data-edit-cond="${index}">Editar material</button>
+                        <button class="btn btn-small" style="background:#dc2626; color:white;" data-delete-cond="${index}">Excluir material</button>
+                      </div>
+                    </div>
+                  `).join('')}
+                </td>
                 <td>
                   <div class="table-actions">
-                    <button class="btn btn-small btn-primary" data-edit-cond="${index}">Editar</button>
-                    <button class="btn btn-small" style="background:#dc2626; color:white;" data-delete-cond="${index}">Excluir</button>
+                    <button class="btn btn-small btn-success" data-add-material-cond="${groupIndex}">+ Material</button>
+                    <button class="btn btn-small" style="background:#dc2626; color:white;" data-delete-group-cond="${groupIndex}">Excluir aluno</button>
                   </div>
                 </td>
               </tr>
@@ -1407,6 +1445,20 @@
       if ($('condItemTitulo')) $('condItemTitulo').textContent = 'Editar aluno/material';
       if ($('adicionarCondItem')) $('adicionarCondItem').textContent = 'Salvar edição';
       $('condItemModal').classList.add('ativo');
+    }
+
+    function abrirModalNovoMaterialCondItem(groupIndex) {
+      const groups = agruparLinhasCondicionais(lerLinhasCondicionais());
+      const group = groups[groupIndex];
+      if (!group) return;
+      limparFormularioCondItem();
+      $('condItemNome').value = group.nome || '';
+      $('condItemMatricula').value = group.matricula || '';
+      $('condItemTelefone').value = group.telefone || '';
+      if ($('condItemTitulo')) $('condItemTitulo').textContent = 'Adicionar material para ' + (group.nome || 'aluno');
+      if ($('adicionarCondItem')) $('adicionarCondItem').textContent = 'Adicionar na tabela';
+      $('condItemModal').classList.add('ativo');
+      $('condItemMaterial').focus();
     }
 
     function fecharModalCondItem() {
@@ -1631,14 +1683,30 @@
       $('condTabela').addEventListener('click', (event) => {
         const editar = event.target.closest('[data-edit-cond]');
         const excluir = event.target.closest('[data-delete-cond]');
+        const adicionarMaterial = event.target.closest('[data-add-material-cond]');
+        const excluirGrupo = event.target.closest('[data-delete-group-cond]');
         if (editar) {
           abrirModalEditarCondItem(Number(editar.dataset.editCond));
           return;
         }
         if (excluir) {
-          if (!confirm('Excluir este aluno/material da tabela?')) return;
+          if (!confirm('Excluir este material da tabela?')) return;
           const rows = lerLinhasCondicionais();
           rows.splice(Number(excluir.dataset.deleteCond), 1);
+          escreverLinhasCondicionais(rows);
+          return;
+        }
+        if (adicionarMaterial) {
+          abrirModalNovoMaterialCondItem(Number(adicionarMaterial.dataset.addMaterialCond));
+          return;
+        }
+        if (excluirGrupo) {
+          if (!confirm('Excluir este aluno e todos os materiais dele?')) return;
+          const groups = agruparLinhasCondicionais(lerLinhasCondicionais());
+          const group = groups[Number(excluirGrupo.dataset.deleteGroupCond)];
+          if (!group) return;
+          const indexes = new Set(group.items.map(item => item.index));
+          const rows = lerLinhasCondicionais().filter((_, index) => !indexes.has(index));
           escreverLinhasCondicionais(rows);
         }
       });
