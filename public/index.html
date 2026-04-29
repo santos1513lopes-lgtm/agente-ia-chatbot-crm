@@ -717,32 +717,43 @@
     <div id="tab-contatos" class="tab-content">
       <div class="card">
         <h2>👥 Contatos</h2>
-        <div class="grid-2">
-          <div class="form-group">
-            <label for="contatoNome">Nome</label>
-            <input type="text" id="contatoNome" placeholder="Nome do contato">
+        <p class="contact-meta">Cadastre contatos manualmente ou importe uma planilha CSV do Google Sheets.</p>
+        <button class="btn btn-success" id="abrirContatoModal">+ Adicionar contato</button>
+      </div>
+
+      <div class="modal-backdrop" id="contatoModal">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h2 id="contatoModalTitulo">Adicionar contato</h2>
+            <button class="btn btn-small" id="fecharContatoModal" style="background:#475569; color:white;">Fechar</button>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label for="contatoNome">Nome</label>
+              <input type="text" id="contatoNome" placeholder="Nome do contato">
+            </div>
+            <div class="form-group">
+              <label for="contatoTelefone">WhatsApp</label>
+              <input type="tel" id="contatoTelefone" placeholder="5571999999999">
+            </div>
           </div>
           <div class="form-group">
-            <label for="contatoTelefone">WhatsApp</label>
-            <input type="tel" id="contatoTelefone" placeholder="5571999999999">
+            <label for="contatoTag">Tag/status</label>
+            <input type="text" id="contatoTag" placeholder="cliente, lead, suporte...">
           </div>
-        </div>
-        <div class="form-group">
-          <label for="contatoTag">Tag/status</label>
-          <input type="text" id="contatoTag" placeholder="cliente, lead, suporte...">
-        </div>
-        <div class="form-group">
-          <label for="contatoLista">Lista/grupo</label>
-          <input type="text" id="contatoLista" list="listasContatosOpcoes" placeholder="Alunos, Instrutores, Clientes...">
-          <datalist id="listasContatosOpcoes"></datalist>
-        </div>
-        <div class="form-group">
-          <label for="contatoObs">Observações</label>
-          <textarea id="contatoObs" placeholder="Informações importantes sobre este contato"></textarea>
-        </div>
-        <div class="schedule-actions">
-          <button class="btn btn-success" id="salvarContato">Salvar contato</button>
-          <button class="btn btn-small" id="cancelarEdicaoContato" style="display:none; background:#475569; color:white;">Cancelar edição</button>
+          <div class="form-group">
+            <label for="contatoLista">Lista/grupo</label>
+            <input type="text" id="contatoLista" list="listasContatosOpcoes" placeholder="Alunos, Instrutores, Clientes...">
+            <datalist id="listasContatosOpcoes"></datalist>
+          </div>
+          <div class="form-group">
+            <label for="contatoObs">Observações</label>
+            <textarea id="contatoObs" placeholder="Informações importantes sobre este contato"></textarea>
+          </div>
+          <div class="schedule-actions">
+            <button class="btn btn-success" id="salvarContato">Salvar contato</button>
+            <button class="btn btn-small" id="cancelarEdicaoContato" style="display:none; background:#475569; color:white;">Cancelar edição</button>
+          </div>
         </div>
       </div>
 
@@ -1990,6 +2001,10 @@
     const contatosCsvLista = document.getElementById("contatosCsvLista");
     const importarContatosCsv = document.getElementById("importarContatosCsv");
     const statusImportarContatos = document.getElementById("statusImportarContatos");
+    const abrirContatoModal = document.getElementById("abrirContatoModal");
+    const contatoModal = document.getElementById("contatoModal");
+    const contatoModalTitulo = document.getElementById("contatoModalTitulo");
+    const fecharContatoModal = document.getElementById("fecharContatoModal");
     const agContato = document.getElementById("agContato");
     const agDataHora = document.getElementById("agDataHora");
     const agMensagem = document.getElementById("agMensagem");
@@ -2078,7 +2093,19 @@
       contatoLista.value = "";
       contatoObs.value = "";
       salvarContato.textContent = "Salvar contato";
+      if (contatoModalTitulo) contatoModalTitulo.textContent = "Adicionar contato";
       if (cancelarEdicaoContato) cancelarEdicaoContato.style.display = "none";
+    }
+
+    function abrirFormularioContato() {
+      limparFormularioContato();
+      if (contatoModal) contatoModal.classList.add("ativo");
+      contatoNome.focus();
+    }
+
+    function fecharFormularioContato() {
+      if (contatoModal) contatoModal.classList.remove("ativo");
+      limparFormularioContato();
     }
 
     function preencherFormularioContato(contato) {
@@ -2089,7 +2116,9 @@
       contatoLista.value = contato.lista || "";
       contatoObs.value = contato.observacoes || "";
       salvarContato.textContent = "Salvar edição";
+      if (contatoModalTitulo) contatoModalTitulo.textContent = "Editar contato";
       if (cancelarEdicaoContato) cancelarEdicaoContato.style.display = "inline-block";
+      if (contatoModal) contatoModal.classList.add("ativo");
       contatoNome.focus();
     }
 
@@ -2197,7 +2226,7 @@
             atualizadoEm: serverTimestamp()
           });
         }
-        limparFormularioContato();
+        fecharFormularioContato();
       } catch (error) {
         alert("Não foi possível salvar o contato. Confira as regras do Firestore.");
       } finally {
@@ -2318,7 +2347,14 @@
     }
 
     salvarContato.addEventListener("click", salvarNovoContato);
-    if (cancelarEdicaoContato) cancelarEdicaoContato.addEventListener("click", limparFormularioContato);
+    if (abrirContatoModal) abrirContatoModal.addEventListener("click", abrirFormularioContato);
+    if (fecharContatoModal) fecharContatoModal.addEventListener("click", fecharFormularioContato);
+    if (cancelarEdicaoContato) cancelarEdicaoContato.addEventListener("click", fecharFormularioContato);
+    if (contatoModal) {
+      contatoModal.addEventListener("click", (event) => {
+        if (event.target.id === "contatoModal") fecharFormularioContato();
+      });
+    }
     if (massaListaFiltro) massaListaFiltro.addEventListener("change", renderContatosMassa);
     if (selecionarListaMassa) selecionarListaMassa.addEventListener("click", () => {
       listaContatosMassa.querySelectorAll('input[type="checkbox"]').forEach(input => {
