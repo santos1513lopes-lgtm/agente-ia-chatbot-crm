@@ -347,7 +347,7 @@ const app = express();
 const server = http.createServer(app);
 io = new Server(server);
 
-app.use(express.json({ limit: "35mb" }));
+app.use(express.json({ limit: "100mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 function ensureDir(dir) {
@@ -470,8 +470,8 @@ app.post("/api/upload/agendamento", (req, res) => {
     const [, base64] = String(dataUrl).split(",");
     const buffer = Buffer.from(base64, "base64");
     if (!buffer.length) return res.status(400).json({ ok: false, erro: "Arquivo vazio" });
-    if (buffer.length > 20 * 1024 * 1024) {
-      return res.status(400).json({ ok: false, erro: "Arquivo maior que 20 MB" });
+    if (buffer.length > 64 * 1024 * 1024) {
+      return res.status(400).json({ ok: false, erro: "Arquivo maior que 64 MB" });
     }
 
     const dir = path.join(__dirname, "uploads", "agendamentos");
@@ -603,10 +603,13 @@ app.post("/api/whatsapp/send", async (req, res) => {
     const mensagemFinal = String(req.body.mensagemFinal || "").trim();
     const delayBlocos = req.body.delayBlocos;
     const arquivo = req.body.arquivo || null;
+    const arquivos = Array.isArray(req.body.arquivos) ? req.body.arquivos : [];
     if (!telefone) return res.status(400).json({ ok: false, erro: "Telefone obrigatório" });
-    if (!mensagem && !arquivo && !mensagemFinal) return res.status(400).json({ ok: false, erro: "Mensagem, finalização ou arquivo obrigatório" });
+    if (!mensagem && !arquivo && !arquivos.length && !mensagemFinal) {
+      return res.status(400).json({ ok: false, erro: "Mensagem, finalização ou arquivo obrigatório" });
+    }
 
-    await enviarSequenciaWhatsApp({ telefone, mensagem, arquivo, mensagemFinal, delayBlocos });
+    await enviarSequenciaWhatsApp({ telefone, mensagem, arquivo, arquivos, mensagemFinal, delayBlocos });
     res.json({ ok: true });
   } catch (e) {
     console.error("Erro ao enviar WhatsApp:", e);
@@ -740,27 +743,36 @@ function initWhatsApp(force = false) {
 // =====================================
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function enviarSequenciaWhatsApp({ telefone, mensagem, arquivo, mensagemFinal, delayBlocos }) {
+async function enviarSequenciaWhatsApp({ telefone, mensagem, arquivo, arquivos, mensagemFinal, delayBlocos }) {
   const chatId = `${telefone}@c.us`;
   const intervaloMs = Math.max(0, Math.min(120, Number(delayBlocos) || 0)) * 1000;
   let sentMsg = null;
+  const listaArquivos = Array.isArray(arquivos) && arquivos.length
+    ? arquivos
+    : (arquivo ? [arquivo] : []);
 
-  if (arquivo && arquivo.caminho) {
-    const fullPath = resolveUploadPath(arquivo.caminho);
-    if (!fullPath || !fs.existsSync(fullPath)) {
-      throw new Error("Arquivo não encontrado");
+  if (listaArquivos.length) {
+    for (let i = 0; i < listaArquivos.length; i++) {
+      const item = listaArquivos[i];
+      if (!item || !item.caminho) continue;
+      const fullPath = resolveUploadPath(item.caminho);
+      if (!fullPath || !fs.existsSync(fullPath)) {
+        throw new Error(`Arquivo não encontrado: ${item.nomeOriginal || item.nome || "anexo"}`);
+      }
+      if (sentMsg && intervaloMs > 0) await delay(intervaloMs);
+      const media = new MessageMedia(
+        item.tipo || "application/octet-stream",
+        fs.readFileSync(fullPath).toString("base64"),
+        item.nomeOriginal || path.basename(fullPath)
+      );
+      const options = i === 0 && mensagem ? { caption: mensagem } : undefined;
+      sentMsg = await whatsappClient.sendMessage(chatId, media, options);
+      if (sentMsg) silencio.registrarMensagemDoBot(sentMsg);
     }
-    const media = new MessageMedia(
-      arquivo.tipo || "application/octet-stream",
-      fs.readFileSync(fullPath).toString("base64"),
-      arquivo.nomeOriginal || path.basename(fullPath)
-    );
-    sentMsg = await whatsappClient.sendMessage(chatId, media, mensagem ? { caption: mensagem } : undefined);
   } else if (mensagem) {
     sentMsg = await whatsappClient.sendMessage(chatId, mensagem);
+    if (sentMsg) silencio.registrarMensagemDoBot(sentMsg);
   }
-
-  if (sentMsg) silencio.registrarMensagemDoBot(sentMsg);
 
   if (mensagemFinal) {
     if (sentMsg && intervaloMs > 0) await delay(intervaloMs);

@@ -839,8 +839,9 @@
           <input type="number" id="agDelayBlocos" min="0" max="120" value="3">
         </div>
         <div class="form-group">
-          <label for="agArquivo">Banner/imagem ou arquivo opcional</label>
-          <input type="file" id="agArquivo" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
+          <label for="agArquivo">Arquivos da campanha (vídeo, áudio, imagem, PDF...)</label>
+          <input type="file" id="agArquivo" multiple accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.jwpub">
+          <div id="agArquivosPreview" class="bulk-status">Nenhum arquivo selecionado.</div>
         </div>
         <div class="schedule-actions">
           <button class="btn btn-primary" id="salvarAgendamento">Salvar agendamento</button>
@@ -2000,6 +2001,7 @@
     const agMensagemFinal = document.getElementById("agMensagemFinal");
     const agDelayBlocos = document.getElementById("agDelayBlocos");
     const agArquivo = document.getElementById("agArquivo");
+    const agArquivosPreview = document.getElementById("agArquivosPreview");
     const silenciarEnvios = document.getElementById("silenciarEnvios");
     const salvarSilencioEnvios = document.getElementById("salvarSilencioEnvios");
     const statusSilencioEnvios = document.getElementById("statusSilencioEnvios");
@@ -2102,6 +2104,7 @@
       agMensagemFinal.value = "";
       agDelayBlocos.value = "3";
       agArquivo.value = "";
+      renderPreviewArquivosAgendamento();
       atualizarPreviewCampanha();
     }
 
@@ -2413,17 +2416,54 @@
     }
 
     async function salvarArquivoAgendamento() {
-      const file = agArquivo.files && agArquivo.files[0];
-      if (!file) return null;
-      const dataUrl = await arquivoParaDataUrl(file);
-      const resposta = await fetch("/api/upload/agendamento", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome: file.name, tipo: file.type, dataUrl })
-      });
-      const json = await resposta.json();
-      if (!json.ok) throw new Error(json.erro || "Erro ao salvar arquivo");
-      return json.arquivo;
+      const arquivos = await salvarArquivosAgendamento();
+      return arquivos[0] || null;
+    }
+
+    function formatarTamanhoArquivo(bytes) {
+      const tamanho = Number(bytes) || 0;
+      if (tamanho >= 1024 * 1024) return `${(tamanho / 1024 / 1024).toFixed(1)} MB`;
+      if (tamanho >= 1024) return `${(tamanho / 1024).toFixed(1)} KB`;
+      return `${tamanho} B`;
+    }
+
+    function getArquivosSelecionadosAgendamento() {
+      return Array.from(agArquivo.files || []);
+    }
+
+    function renderPreviewArquivosAgendamento() {
+      if (!agArquivosPreview) return;
+      const files = getArquivosSelecionadosAgendamento();
+      if (!files.length) {
+        agArquivosPreview.textContent = "Nenhum arquivo selecionado.";
+        return;
+      }
+      agArquivosPreview.innerHTML = `Arquivos selecionados (${files.length}):<br>` + files.map((file) => {
+        return `• ${escapeText(file.name)} (${formatarTamanhoArquivo(file.size)})`;
+      }).join("<br>");
+    }
+
+    async function salvarArquivosAgendamento() {
+      const files = getArquivosSelecionadosAgendamento();
+      if (!files.length) return [];
+      const arquivos = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (agArquivosPreview) {
+          agArquivosPreview.textContent = `Enviando arquivo ${i + 1}/${files.length}: ${file.name}`;
+        }
+        const dataUrl = await arquivoParaDataUrl(file);
+        const resposta = await fetch("/api/upload/agendamento", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nome: file.name, tipo: file.type, dataUrl })
+        });
+        const json = await resposta.json();
+        if (!json.ok) throw new Error(json.erro || `Erro ao salvar ${file.name}`);
+        arquivos.push(json.arquivo);
+      }
+      renderPreviewArquivosAgendamento();
+      return arquivos;
     }
 
     function montarMensagemCampanha(temArquivo) {
@@ -2472,17 +2512,18 @@
     async function montarDadosAgendamento(exigirData) {
       if (!usuarioAtual) throw new Error("Entre no painel antes de usar agendamentos.");
       const contato = getContatoSelecionado();
-      const temArquivo = !!(agArquivo.files && agArquivo.files[0]);
-      const mensagem = montarMensagemCampanha(temArquivo);
+      const temArquivos = getArquivosSelecionadosAgendamento().length > 0;
+      const mensagem = montarMensagemCampanha(temArquivos);
       const mensagemFinalBase = agMensagemFinal.value.trim();
       const delayBlocos = Math.max(0, Math.min(120, Number(agDelayBlocos.value) || 0));
       const dataHora = agDataHora.value;
       if (!contato) throw new Error("Selecione um contato.");
-      if (!mensagem && !temArquivo && !mensagemFinal) {
+      if (!mensagem && !temArquivos && !mensagemFinalBase) {
         throw new Error("Informe uma mensagem, finalização ou escolha um arquivo.");
       }
       if (exigirData && !dataHora) throw new Error("Informe a data e hora do agendamento.");
-      const arquivo = await salvarArquivoAgendamento();
+      const arquivos = await salvarArquivosAgendamento();
+      const arquivo = arquivos[0] || null;
       return {
         uid: usuarioAtual.uid,
         contatoId: contato.id,
@@ -2492,6 +2533,7 @@
         mensagemFinal: aplicarVariaveisContato(mensagemFinalBase, contato),
         delayBlocos,
         arquivo,
+        arquivos,
         dataHora: dataHora ? Timestamp.fromDate(new Date(dataHora)) : null,
         status: exigirData ? "pendente" : "enviado",
         criadoEm: serverTimestamp(),
@@ -2499,10 +2541,8 @@
       };
     }
 
-    async function montarArquivoCompartilhado() {
-      const file = agArquivo.files && agArquivo.files[0];
-      if (!file) return null;
-      return salvarArquivoAgendamento();
+    async function montarArquivosCompartilhados() {
+      return salvarArquivosAgendamento();
     }
 
     async function enviarWhatsApp(agendamento) {
@@ -2514,7 +2554,8 @@
           mensagem: agendamento.mensagem,
           mensagemFinal: agendamento.mensagemFinal || "",
           delayBlocos: agendamento.delayBlocos || 0,
-          arquivo: agendamento.arquivo || null
+          arquivo: agendamento.arquivo || null,
+          arquivos: agendamento.arquivos || []
         })
       });
       const json = await resposta.json();
@@ -2585,7 +2626,12 @@
       }
 
       listaAgendamentos.innerHTML = agendamentos.map((item) => {
-        const arquivo = item.arquivo ? `<div class="contact-meta">Arquivo: ${escapeText(item.arquivo.nomeOriginal)}</div>` : "";
+        const arquivosItem = Array.isArray(item.arquivos) && item.arquivos.length
+          ? item.arquivos
+          : (item.arquivo ? [item.arquivo] : []);
+        const arquivo = arquivosItem.length
+          ? `<div class="contact-meta">Arquivos: ${arquivosItem.map(file => escapeText(file.nomeOriginal || file.nome || "arquivo")).join(", ")}</div>`
+          : "";
         const mensagem = item.mensagem ? `<div class="contact-meta">${escapeText(item.mensagem)}</div>` : "";
         const finalizacao = item.mensagemFinal ? `<div class="contact-meta">Finalização: ${escapeText(item.mensagemFinal)}</div>` : "";
         return `
@@ -2677,6 +2723,8 @@
     [agMensagem, agBannerTitulo, agBannerDescricao, agBotaoTexto, agBotaoLink].forEach((el) => {
       if (el) el.addEventListener("input", atualizarPreviewCampanha);
     });
+    if (agArquivo) agArquivo.addEventListener("change", renderPreviewArquivosAgendamento);
+    renderPreviewArquivosAgendamento();
     atualizarPreviewCampanha();
     salvarMassa.addEventListener("click", async () => {
       if (!usuarioAtual) {
@@ -2686,8 +2734,8 @@
       const idsSelecionados = Array.from(listaContatosMassa.querySelectorAll("input:checked")).map((input) => input.value);
       const limite = Math.max(1, Math.min(50, Number(massaLimite.value) || 10));
       const contatosSelecionados = contatosCache.filter((contato) => idsSelecionados.includes(contato.id)).slice(0, limite);
-      const temArquivo = !!(agArquivo.files && agArquivo.files[0]);
-      const mensagem = montarMensagemCampanha(temArquivo);
+      const temArquivos = getArquivosSelecionadosAgendamento().length > 0;
+      const mensagem = montarMensagemCampanha(temArquivos);
       const mensagemFinal = agMensagemFinal.value.trim();
       const delayBlocos = Math.max(0, Math.min(120, Number(agDelayBlocos.value) || 0));
       const dataHora = agDataHora.value;
@@ -2700,7 +2748,7 @@
         alert("Informe a data e hora do agendamento.");
         return;
       }
-      if (!mensagem && !temArquivo && !mensagemFinal) {
+      if (!mensagem && !temArquivos && !mensagemFinal) {
         alert("Informe uma mensagem, finalização ou escolha um arquivo.");
         return;
       }
@@ -2709,7 +2757,8 @@
       salvarMassa.disabled = true;
       massaStatus.textContent = "Salvando agendamento em massa...";
       try {
-        const arquivo = await montarArquivoCompartilhado();
+        const arquivos = await montarArquivosCompartilhados();
+        const arquivo = arquivos[0] || null;
         const dataTimestamp = Timestamp.fromDate(new Date(dataHora));
         for (let i = 0; i < contatosSelecionados.length; i++) {
           const contato = contatosSelecionados[i];
@@ -2723,6 +2772,7 @@
             mensagemFinal: aplicarVariaveisContato(mensagemFinal, contato),
             delayBlocos,
             arquivo,
+            arquivos,
             dataHora: dataTimestamp,
             status: "pendente",
             tipoEnvio: "massa_agendado",
@@ -2751,8 +2801,8 @@
       const limite = Math.max(1, Math.min(50, Number(massaLimite.value) || 10));
       const intervalo = Math.max(10, Math.min(600, Number(massaIntervalo.value) || 30));
       const contatosSelecionados = contatosCache.filter((contato) => idsSelecionados.includes(contato.id)).slice(0, limite);
-      const temArquivo = !!(agArquivo.files && agArquivo.files[0]);
-      const mensagem = montarMensagemCampanha(temArquivo);
+      const temArquivos = getArquivosSelecionadosAgendamento().length > 0;
+      const mensagem = montarMensagemCampanha(temArquivos);
       const mensagemFinal = agMensagemFinal.value.trim();
       const delayBlocos = Math.max(0, Math.min(120, Number(agDelayBlocos.value) || 0));
 
@@ -2760,7 +2810,7 @@
         alert("Selecione pelo menos um contato.");
         return;
       }
-      if (!mensagem && !temArquivo && !mensagemFinal) {
+      if (!mensagem && !temArquivos && !mensagemFinal) {
         alert("Informe uma mensagem, finalização ou escolha um arquivo.");
         return;
       }
@@ -2769,7 +2819,8 @@
       enviarMassa.disabled = true;
       massaStatus.textContent = "Preparando envio em massa...";
       try {
-        const arquivo = await montarArquivoCompartilhado();
+        const arquivos = await montarArquivosCompartilhados();
+        const arquivo = arquivos[0] || null;
         for (let i = 0; i < contatosSelecionados.length; i++) {
           const contato = contatosSelecionados[i];
           massaStatus.textContent = `Enviando ${i + 1}/${contatosSelecionados.length}: ${contato.nome}`;
@@ -2782,6 +2833,7 @@
             mensagemFinal: aplicarVariaveisContato(mensagemFinal, contato),
             delayBlocos,
             arquivo,
+            arquivos,
             dataHora: null,
             status: "enviado",
             criadoEm: serverTimestamp(),
