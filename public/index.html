@@ -415,6 +415,37 @@
       opacity: 0.88;
       white-space: pre-wrap;
     }
+    .message-builder {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 16px;
+      align-items: start;
+      margin: 16px 0;
+    }
+    .message-preview {
+      background: #e9f5ef;
+      color: #10251c;
+      border: 1px solid rgba(16,185,129,0.28);
+      border-radius: 8px;
+      padding: 14px;
+      min-height: 180px;
+      white-space: pre-wrap;
+      font-size: 0.9rem;
+    }
+    .message-preview-title {
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: #065f46;
+    }
+    .link-pill {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #0f766e;
+      color: #fff;
+      font-weight: 700;
+    }
     .data-table-wrap {
       overflow-x: auto;
       border: 1px solid rgba(148,163,184,0.18);
@@ -482,6 +513,7 @@
       .grid-2 { grid-template-columns: 1fr; }
       .dashboard-grid { grid-template-columns: 1fr; }
       .dashboard-panels { grid-template-columns: 1fr; }
+      .message-builder { grid-template-columns: 1fr; }
     }
     @media (max-width: 820px) {
       .crm-layout { grid-template-columns: 1fr; }
@@ -772,6 +804,32 @@
           <label for="agMensagem">Mensagem</label>
           <textarea id="agMensagem" placeholder="Segue o material em anexo."></textarea>
         </div>
+        <div class="message-builder">
+          <div>
+            <div class="grid-2">
+              <div class="form-group">
+                <label for="agBannerTitulo">Título do banner/cartão opcional</label>
+                <input type="text" id="agBannerTitulo" placeholder="Conheça nosso curso">
+              </div>
+              <div class="form-group">
+                <label for="agBotaoTexto">Texto do botão/link opcional</label>
+                <input type="text" id="agBotaoTexto" placeholder="Acessar material">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="agBannerDescricao">Descrição opcional</label>
+              <input type="text" id="agBannerDescricao" placeholder="Material disponível para sua turma">
+            </div>
+            <div class="form-group">
+              <label for="agBotaoLink">Link opcional</label>
+              <input type="url" id="agBotaoLink" placeholder="https://seulink.com">
+            </div>
+          </div>
+          <div>
+            <div class="message-preview-title">Prévia da mensagem</div>
+            <div id="agPreview" class="message-preview">Digite a mensagem ou configure um link para visualizar.</div>
+          </div>
+        </div>
         <div class="form-group">
           <label for="agMensagemFinal">Mensagem de finalização opcional</label>
           <textarea id="agMensagemFinal" placeholder="Qualquer dúvida, responda esta mensagem e um atendente irá ajudar."></textarea>
@@ -781,7 +839,7 @@
           <input type="number" id="agDelayBlocos" min="0" max="120" value="3">
         </div>
         <div class="form-group">
-          <label for="agArquivo">Arquivo opcional</label>
+          <label for="agArquivo">Banner/imagem ou arquivo opcional</label>
           <input type="file" id="agArquivo" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
         </div>
         <div class="schedule-actions">
@@ -1934,6 +1992,11 @@
     const agContato = document.getElementById("agContato");
     const agDataHora = document.getElementById("agDataHora");
     const agMensagem = document.getElementById("agMensagem");
+    const agBannerTitulo = document.getElementById("agBannerTitulo");
+    const agBannerDescricao = document.getElementById("agBannerDescricao");
+    const agBotaoTexto = document.getElementById("agBotaoTexto");
+    const agBotaoLink = document.getElementById("agBotaoLink");
+    const agPreview = document.getElementById("agPreview");
     const agMensagemFinal = document.getElementById("agMensagemFinal");
     const agDelayBlocos = document.getElementById("agDelayBlocos");
     const agArquivo = document.getElementById("agArquivo");
@@ -2032,9 +2095,14 @@
       agContato.value = "";
       agDataHora.value = "";
       agMensagem.value = "";
+      agBannerTitulo.value = "";
+      agBannerDescricao.value = "";
+      agBotaoTexto.value = "";
+      agBotaoLink.value = "";
       agMensagemFinal.value = "";
       agDelayBlocos.value = "3";
       agArquivo.value = "";
+      atualizarPreviewCampanha();
     }
 
     function normalizarTelefone(valor) {
@@ -2358,11 +2426,41 @@
       return json.arquivo;
     }
 
+    function montarMensagemCampanha(temArquivo) {
+      const partes = [];
+      const titulo = agBannerTitulo.value.trim();
+      const descricao = agBannerDescricao.value.trim();
+      const mensagemBase = agMensagem.value.trim();
+      const textoBotao = agBotaoTexto.value.trim();
+      const linkBotao = agBotaoLink.value.trim();
+
+      if (titulo) partes.push(`*${titulo}*`);
+      if (descricao) partes.push(descricao);
+      if (mensagemBase) partes.push(mensagemBase);
+      if (linkBotao) {
+        const rotulo = textoBotao || "Abrir link";
+        partes.push(`🔗 ${rotulo}\n${linkBotao}`);
+      }
+
+      const mensagem = partes.join("\n\n").trim();
+      return mensagem || (temArquivo ? MENSAGEM_PADRAO_ANEXO : "");
+    }
+
+    function atualizarPreviewCampanha() {
+      if (!agPreview) return;
+      const mensagem = montarMensagemCampanha(false);
+      if (!mensagem) {
+        agPreview.textContent = "Digite a mensagem ou configure um link para visualizar.";
+        return;
+      }
+      agPreview.textContent = mensagem;
+    }
+
     async function montarDadosAgendamento(exigirData) {
       if (!usuarioAtual) throw new Error("Entre no painel antes de usar agendamentos.");
       const contato = getContatoSelecionado();
       const temArquivo = !!(agArquivo.files && agArquivo.files[0]);
-      const mensagem = agMensagem.value.trim() || (temArquivo ? MENSAGEM_PADRAO_ANEXO : "");
+      const mensagem = montarMensagemCampanha(temArquivo);
       const mensagemFinal = agMensagemFinal.value.trim();
       const delayBlocos = Math.max(0, Math.min(120, Number(agDelayBlocos.value) || 0));
       const dataHora = agDataHora.value;
@@ -2563,6 +2661,10 @@
 
     salvarAgendamento.addEventListener("click", salvarNovoAgendamento);
     enviarAgora.addEventListener("click", enviarMensagemAgora);
+    [agMensagem, agBannerTitulo, agBannerDescricao, agBotaoTexto, agBotaoLink].forEach((el) => {
+      if (el) el.addEventListener("input", atualizarPreviewCampanha);
+    });
+    atualizarPreviewCampanha();
     salvarMassa.addEventListener("click", async () => {
       if (!usuarioAtual) {
         alert("Entre no painel antes de agendar em massa.");
@@ -2572,7 +2674,7 @@
       const limite = Math.max(1, Math.min(50, Number(massaLimite.value) || 10));
       const contatosSelecionados = contatosCache.filter((contato) => idsSelecionados.includes(contato.id)).slice(0, limite);
       const temArquivo = !!(agArquivo.files && agArquivo.files[0]);
-      const mensagem = agMensagem.value.trim() || (temArquivo ? MENSAGEM_PADRAO_ANEXO : "");
+      const mensagem = montarMensagemCampanha(temArquivo);
       const mensagemFinal = agMensagemFinal.value.trim();
       const delayBlocos = Math.max(0, Math.min(120, Number(agDelayBlocos.value) || 0));
       const dataHora = agDataHora.value;
@@ -2637,7 +2739,7 @@
       const intervalo = Math.max(10, Math.min(600, Number(massaIntervalo.value) || 30));
       const contatosSelecionados = contatosCache.filter((contato) => idsSelecionados.includes(contato.id)).slice(0, limite);
       const temArquivo = !!(agArquivo.files && agArquivo.files[0]);
-      const mensagem = agMensagem.value.trim() || (temArquivo ? MENSAGEM_PADRAO_ANEXO : "");
+      const mensagem = montarMensagemCampanha(temArquivo);
       const mensagemFinal = agMensagemFinal.value.trim();
       const delayBlocos = Math.max(0, Math.min(120, Number(agDelayBlocos.value) || 0));
 
