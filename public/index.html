@@ -2446,6 +2446,19 @@
       return mensagem || (temArquivo ? MENSAGEM_PADRAO_ANEXO : "");
     }
 
+    function aplicarVariaveisContato(texto, contato) {
+      const dados = {
+        nome: contato?.nome || contato?.contatoNome || "",
+        telefone: contato?.telefone || "",
+        tag: contato?.tag || "",
+        lista: contato?.lista || ""
+      };
+      return String(texto || "").replace(/\{([^}]+)\}/g, (_, chave) => {
+        const key = String(chave || "").trim().toLowerCase();
+        return Object.prototype.hasOwnProperty.call(dados, key) ? dados[key] : "";
+      });
+    }
+
     function atualizarPreviewCampanha() {
       if (!agPreview) return;
       const mensagem = montarMensagemCampanha(false);
@@ -2461,7 +2474,7 @@
       const contato = getContatoSelecionado();
       const temArquivo = !!(agArquivo.files && agArquivo.files[0]);
       const mensagem = montarMensagemCampanha(temArquivo);
-      const mensagemFinal = agMensagemFinal.value.trim();
+      const mensagemFinalBase = agMensagemFinal.value.trim();
       const delayBlocos = Math.max(0, Math.min(120, Number(agDelayBlocos.value) || 0));
       const dataHora = agDataHora.value;
       if (!contato) throw new Error("Selecione um contato.");
@@ -2475,8 +2488,8 @@
         contatoId: contato.id,
         contatoNome: contato.nome || "",
         telefone: contato.telefone || "",
-        mensagem,
-        mensagemFinal,
+        mensagem: aplicarVariaveisContato(mensagem, contato),
+        mensagemFinal: aplicarVariaveisContato(mensagemFinalBase, contato),
         delayBlocos,
         arquivo,
         dataHora: dataHora ? Timestamp.fromDate(new Date(dataHora)) : null,
@@ -2706,8 +2719,8 @@
             contatoId: contato.id,
             contatoNome: contato.nome || "",
             telefone: contato.telefone || "",
-            mensagem,
-            mensagemFinal,
+            mensagem: aplicarVariaveisContato(mensagem, contato),
+            mensagemFinal: aplicarVariaveisContato(mensagemFinal, contato),
             delayBlocos,
             arquivo,
             dataHora: dataTimestamp,
@@ -2765,8 +2778,8 @@
             contatoId: contato.id,
             contatoNome: contato.nome || "",
             telefone: contato.telefone || "",
-            mensagem,
-            mensagemFinal,
+            mensagem: aplicarVariaveisContato(mensagem, contato),
+            mensagemFinal: aplicarVariaveisContato(mensagemFinal, contato),
             delayBlocos,
             arquivo,
             dataHora: null,
