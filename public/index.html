@@ -839,6 +839,17 @@
     <!-- Aba Fluxos -->
     <div id="tab-fluxos" class="tab-content">
       <div class="card">
+        <h2>Resposta padrão</h2>
+        <p class="dica">
+          Essa mensagem é enviada quando nenhuma palavra-chave, fluxo condicional ou IA encontra resposta. Deixe em branco para o bot não responder nesses casos.
+        </p>
+        <div class="form-group">
+          <label for="fallbackResposta">Quando o bot não entender</label>
+          <textarea id="fallbackResposta" placeholder="Desculpe, não entendi. Digite 'menu' para ver as opções."></textarea>
+        </div>
+        <button class="btn btn-primary" id="salvarFallback">Salvar resposta padrão</button>
+      </div>
+      <div class="card">
         <h2>📋 Fluxos do Bot</h2>
         <p class="dica">
           Quando a pessoa digitar alguma das palavras abaixo, o bot responde com a mensagem definida. 
@@ -1127,6 +1138,11 @@
       $('useAI').checked = cfg.useAI !== false;
       $('promptSistema').value = cfg.promptSistema || '';
       $('modeloGroq').value = cfg.model || 'llama-3.1-8b-instant';
+      if ($('fallbackResposta')) {
+        $('fallbackResposta').value = typeof cfg.fallbackResposta === 'string'
+          ? cfg.fallbackResposta
+          : "Desculpe, não entendi. Digite 'menu' para ver as opções.";
+      }
       if ($('silenciarBot')) {
         $('silenciarBot').checked = !!cfg.silenciarBot;
         $('statusSilencioBot').textContent = cfg.silenciarBot
@@ -1651,6 +1667,7 @@
           useAI: $('useAI').checked,
           model: $('modeloGroq').value,
           promptSistema: $('promptSistema').value.trim(),
+          fallbackResposta: $('fallbackResposta') ? $('fallbackResposta').value.trim() : undefined,
           handoff: {
             ativo: $('handoffAtivo').checked,
             numeroAtendente: $('handoffNumero').value.replace(/\D/g, ''),
@@ -1666,6 +1683,7 @@
 
     $('salvarGroq').addEventListener('click', salvarTudo);
     $('salvarModelo').addEventListener('click', salvarTudo);
+    if ($('salvarFallback')) $('salvarFallback').addEventListener('click', salvarTudo);
     if ($('dashToggleBot')) {
       $('dashToggleBot').addEventListener('click', async () => {
         await salvarSilencioBotValor(!window.dashboardState.botSilenciado);

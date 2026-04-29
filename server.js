@@ -296,6 +296,7 @@ function loadConfig() {
     useAI: true,
     model: "llama-3.1-8b-instant",
     promptSistema: "Você é o assistente virtual da empresa. Seja simpático, profissional e objetivo. Responda dúvidas sobre horário, preços e serviços. Se não souber algo, peça para a pessoa aguardar que um atendente responderá.",
+    fallbackResposta: "Desculpe, não entendi. Digite 'menu' para ver as opções.",
     conditionalFlows: defaultConditionalFlows(),
     handoff: defaultHandoffConfig(),
     flows: [
@@ -932,7 +933,12 @@ async function handleMessage(msg) {
       resposta = await respostaPorIA(texto);
     }
     if (!resposta) {
-      resposta = "Desculpe, não entendi. Digite 'menu' para ver as opções.";
+      resposta = typeof config.fallbackResposta === "string"
+        ? config.fallbackResposta.trim()
+        : "Desculpe, não entendi. Digite 'menu' para ver as opções.";
+    }
+    if (!resposta) {
+      return;
     }
 
     await typing();
