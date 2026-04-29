@@ -25,8 +25,13 @@ const SKIP_WHATSAPP = process.env.SKIP_WHATSAPP === "1";
 let groqClient = null;
 let whatsappClient = null;
 let whatsappConectado = false;
+let whatsappAutoReconnect = true;
+let whatsappInicializadoEm = 0;
+let reinicioWhatsAppEmAndamento = false;
 let io = null;
 const estadosConversa = new Map();
+const WHATSAPP_WATCHDOG_INTERVAL_MS = 2 * 60 * 1000;
+const WHATSAPP_STARTUP_TIMEOUT_MS = 5 * 60 * 1000;
 
 function normalizeText(value) {
   return String(value || "")
@@ -625,6 +630,7 @@ app.get("/", (req, res) => {
 // API: Desconectar WhatsApp
 app.post("/api/whatsapp/disconnect", async (req, res) => {
   try {
+    whatsappAutoReconnect = false;
     if (whatsappClient) {
       whatsappConectado = false;
       try { await whatsappClient.destroy(); } catch (e) {}
@@ -642,6 +648,7 @@ app.post("/api/whatsapp/disconnect", async (req, res) => {
 // ?limpar=1 para limpar sessão e tentar do zero (quando trava)
 app.post("/api/whatsapp/restart", async (req, res) => {
   try {
+    whatsappAutoReconnect = true;
     if (whatsappClient) {
       try { await whatsappClient.destroy(); } catch (e) {}
       whatsappClient = null;
@@ -676,10 +683,12 @@ app.post("/api/whatsapp/restart", async (req, res) => {
 // WHATSAPP
 // =====================================
 function initWhatsApp(force = false) {
+  whatsappAutoReconnect = true;
   if (whatsappClient && !force) return;
   if (whatsappClient && force) {
     whatsappClient = null;
   }
+  whatsappInicializadoEm = Date.now();
   
   whatsappClient = new Client({
     authStrategy: new LocalAuth({ clientId: "agente-ia" }),
@@ -722,6 +731,7 @@ function initWhatsApp(force = false) {
   whatsappClient.on("disconnected", () => {
     whatsappConectado = false;
     io.emit("status", { conectado: false, mensagem: "WhatsApp desconectado" });
+    agendarReinicioWhatsApp("WhatsApp desconectado");
   });
 
   whatsappClient.on("auth_failure", (msg) => {
@@ -735,7 +745,60 @@ function initWhatsApp(force = false) {
     console.error("Erro ao inicializar WhatsApp:", err);
     whatsappClient = null;
     io.emit("status", { conectado: false, mensagem: "Erro ao iniciar. Feche outros programas e clique em 'Limpar sessão e tentar'." });
+    agendarReinicioWhatsApp("Falha ao inicializar WhatsApp");
   });
+}
+
+async function agendarReinicioWhatsApp(motivo) {
+  if (SKIP_WHATSAPP || !whatsappAutoReconnect || reinicioWhatsAppEmAndamento) return;
+  reinicioWhatsAppEmAndamento = true;
+  console.log(`Watchdog WhatsApp: reiniciando em 15s. Motivo: ${motivo}`);
+  io.emit("status", { conectado: false, mensagem: "WhatsApp caiu/travou. Tentando reconectar automaticamente..." });
+  setTimeout(async () => {
+    try {
+      if (whatsappClient) {
+        try { await whatsappClient.destroy(); } catch (e) {}
+        whatsappClient = null;
+      }
+      whatsappConectado = false;
+      io.emit("qr", "loading");
+      initWhatsApp(true);
+    } catch (e) {
+      console.error("Erro no reinício automático do WhatsApp:", e);
+    } finally {
+      reinicioWhatsAppEmAndamento = false;
+    }
+  }, 15000);
+}
+
+function iniciarWatchdogWhatsApp() {
+  if (SKIP_WHATSAPP) return;
+  setInterval(async () => {
+    if (!whatsappAutoReconnect || reinicioWhatsAppEmAndamento) return;
+    if (!whatsappClient) {
+      agendarReinicioWhatsApp("Cliente inexistente");
+      return;
+    }
+
+    const tempoInicializando = Date.now() - whatsappInicializadoEm;
+    if (!whatsappConectado && tempoInicializando > WHATSAPP_STARTUP_TIMEOUT_MS) {
+      agendarReinicioWhatsApp("Tempo limite sem conectar");
+      return;
+    }
+
+    if (!whatsappConectado) return;
+
+    try {
+      const state = await whatsappClient.getState();
+      if (state && state !== "CONNECTED") {
+        whatsappConectado = false;
+        agendarReinicioWhatsApp(`Estado inesperado: ${state}`);
+      }
+    } catch (e) {
+      whatsappConectado = false;
+      agendarReinicioWhatsApp("Falha ao consultar estado do WhatsApp");
+    }
+  }, WHATSAPP_WATCHDOG_INTERVAL_MS);
 }
 
 // =====================================
@@ -997,5 +1060,6 @@ io.on("connection", (socket) => {
     io.emit("status", { conectado: false, mensagem: "Modo local: WhatsApp não iniciado" });
   } else {
     initWhatsApp();
+    iniciarWatchdogWhatsApp();
   }
 });
