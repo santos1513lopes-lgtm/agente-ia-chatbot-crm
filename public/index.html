@@ -12,11 +12,41 @@
       --panel-bg: #24324a;
       --panel-soft: #1d2a3f;
       --panel-raised: #2b3b56;
+      --panel-contrast: #0f172a;
       --field-bg: #f8fafc;
       --field-text: #0f172a;
       --field-border: #cbd5e1;
       --text-main: #f8fafc;
       --text-muted: #cbd5e1;
+      --sidebar-text: #cbd5e1;
+      --sidebar-muted: #94a3b8;
+      --border-soft: rgba(203,213,225,0.18);
+      --border-subtle: rgba(255,255,255,0.08);
+      --hover-soft: rgba(255,255,255,0.06);
+      --shadow-soft: 0 10px 28px rgba(2,6,23,0.14);
+      --accent: #7c3aed;
+      --accent-blue: #2563eb;
+      --success: #16a34a;
+      --danger: #dc2626;
+    }
+    body.theme-light {
+      --page-bg: #edf2f8;
+      --sidebar-bg: #ffffff;
+      --panel-bg: #ffffff;
+      --panel-soft: #f5f8fc;
+      --panel-raised: #e8eef7;
+      --panel-contrast: #e9eef6;
+      --field-bg: #ffffff;
+      --field-text: #111827;
+      --field-border: #cbd5e1;
+      --text-main: #172033;
+      --text-muted: #536179;
+      --sidebar-text: #263246;
+      --sidebar-muted: #64748b;
+      --border-soft: rgba(100,116,139,0.22);
+      --border-subtle: rgba(100,116,139,0.18);
+      --hover-soft: rgba(37,99,235,0.08);
+      --shadow-soft: 0 12px 30px rgba(15,23,42,0.08);
       --accent: #7c3aed;
       --accent-blue: #2563eb;
       --success: #16a34a;
@@ -43,7 +73,7 @@
       top: 0;
       height: 100vh;
       background: var(--sidebar-bg);
-      border-right: 1px solid rgba(255,255,255,0.08);
+      border-right: 1px solid var(--border-subtle);
       padding: 18px 14px;
       display: flex;
       flex-direction: column;
@@ -51,7 +81,7 @@
     }
     .brand {
       padding: 10px 10px 14px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      border-bottom: 1px solid var(--border-subtle);
     }
     .brand-row {
       display: flex;
@@ -62,10 +92,10 @@
     .sidebar-toggle {
       width: 34px;
       height: 34px;
-      border: 1px solid rgba(255,255,255,0.12);
+      border: 1px solid var(--border-subtle);
       border-radius: 8px;
-      background: rgba(255,255,255,0.06);
-      color: #e2e8f0;
+      background: var(--hover-soft);
+      color: var(--sidebar-text);
       cursor: pointer;
       font-size: 1.1rem;
       line-height: 1;
@@ -77,7 +107,7 @@
     }
     .brand-subtitle {
       font-size: 0.78rem;
-      color: #94a3b8;
+      color: var(--sidebar-muted);
     }
     .sidebar-label {
       transition: opacity 0.15s ease;
@@ -112,6 +142,28 @@
     .sidebar-collapsed .sidebar-footer .btn::first-letter {
       font-size: 0;
     }
+    .sidebar-collapsed .theme-control {
+      padding: 6px;
+    }
+    .sidebar-collapsed .theme-control label {
+      display: none;
+    }
+    .sidebar-collapsed .theme-toggle {
+      grid-template-columns: 1fr;
+    }
+    .sidebar-collapsed .theme-option {
+      font-size: 0;
+      min-height: 30px;
+    }
+    .sidebar-collapsed .theme-option::before {
+      font-size: 0.9rem;
+    }
+    .sidebar-collapsed .theme-option[data-theme="dark"]::before {
+      content: "🌙";
+    }
+    .sidebar-collapsed .theme-option[data-theme="light"]::before {
+      content: "☀";
+    }
     .main-content {
       padding: 22px;
       overflow: hidden;
@@ -119,7 +171,7 @@
     
     header {
       padding: 8px 0 20px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
+      border-bottom: 1px solid var(--border-subtle);
       margin-bottom: 20px;
     }
     header h1 { font-size: 1.8rem; margin-bottom: 8px; }
@@ -130,8 +182,8 @@
       border-radius: 8px;
       padding: 24px;
       margin: 20px 0;
-      border: 1px solid rgba(203,213,225,0.18);
-      box-shadow: 0 10px 28px rgba(2,6,23,0.14);
+      border: 1px solid var(--border-soft);
+      box-shadow: var(--shadow-soft);
     }
     .card h2 {
       font-size: 1.1rem;
@@ -231,7 +283,7 @@
       background: transparent;
       border: 1px solid transparent;
       border-radius: 8px;
-      color: #cbd5e1;
+      color: var(--sidebar-text);
       cursor: pointer;
       font-size: 0.92rem;
     }
@@ -240,7 +292,7 @@
       border-color: #3b82f6;
       color: #fff;
     }
-    .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.06); }
+    .tab-btn:hover:not(.active) { background: var(--hover-soft); }
     
     .tab-content { display: none; }
     .tab-content.ativo { display: block; }
@@ -280,7 +332,7 @@
       width: 100%;
       max-width: 380px;
       background: var(--panel-bg);
-      border: 1px solid rgba(203,213,225,0.18);
+      border: 1px solid var(--border-soft);
       border-radius: 12px;
       padding: 28px;
     }
@@ -314,7 +366,42 @@
       display: grid;
       gap: 10px;
       padding-top: 14px;
-      border-top: 1px solid rgba(255,255,255,0.08);
+      border-top: 1px solid var(--border-subtle);
+    }
+    .theme-control {
+      display: grid;
+      gap: 7px;
+      padding: 10px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      background: var(--hover-soft);
+    }
+    .theme-control label {
+      color: var(--sidebar-muted);
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+    .theme-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 4px;
+      border-radius: 8px;
+      background: var(--panel-soft);
+    }
+    .theme-option {
+      border: 0;
+      border-radius: 6px;
+      padding: 7px 8px;
+      background: transparent;
+      color: var(--sidebar-text);
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.78rem;
+    }
+    .theme-option.active {
+      background: var(--accent-blue);
+      color: #fff;
     }
     .grid-2 {
       display: grid;
@@ -323,7 +410,7 @@
     }
     .contact-item {
       background: var(--panel-soft);
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--border-subtle);
       border-radius: 8px;
       padding: 14px;
       margin-bottom: 10px;
@@ -340,7 +427,7 @@
       margin-bottom: 3px;
     }
     .contact-phone {
-      color: #93c5fd;
+      color: #2563eb;
       font-size: 0.9rem;
     }
     .contact-meta {
@@ -362,13 +449,13 @@
     }
     .metric-card {
       background: var(--panel-bg);
-      border: 1px solid rgba(148,163,184,0.18);
+      border: 1px solid var(--border-soft);
       border-radius: 8px;
       padding: 18px;
       min-height: 108px;
     }
     .metric-label {
-      color: #94a3b8;
+      color: var(--text-muted);
       font-size: 0.84rem;
       margin-bottom: 10px;
     }
@@ -378,7 +465,7 @@
       line-height: 1;
     }
     .metric-note {
-      color: #cbd5e1;
+      color: var(--text-muted);
       font-size: 0.82rem;
       margin-top: 10px;
     }
@@ -396,7 +483,7 @@
     .bulk-list {
       max-height: 220px;
       overflow: auto;
-      border: 1px solid rgba(255,255,255,0.12);
+      border: 1px solid var(--border-subtle);
       border-radius: 8px;
       padding: 10px;
       background: var(--panel-soft);
@@ -446,7 +533,7 @@
     .inbox-list,
     .inbox-chat {
       background: var(--panel-bg);
-      border: 1px solid rgba(148,163,184,0.18);
+      border: 1px solid var(--border-soft);
       border-radius: 8px;
       overflow: hidden;
     }
@@ -454,7 +541,7 @@
     .inbox-chat-header,
     .inbox-composer {
       padding: 14px;
-      border-bottom: 1px solid rgba(148,163,184,0.16);
+      border-bottom: 1px solid var(--border-subtle);
     }
     .inbox-list-items {
       max-height: 560px;
@@ -463,7 +550,7 @@
     .inbox-conversation {
       width: 100%;
       border: 0;
-      border-bottom: 1px solid rgba(148,163,184,0.12);
+      border-bottom: 1px solid var(--border-subtle);
       background: transparent;
       color: var(--text-main);
       text-align: left;
@@ -479,7 +566,7 @@
       margin-bottom: 4px;
     }
     .inbox-conversation-meta {
-      color: #cbd5e1;
+      color: var(--text-muted);
       font-size: 0.82rem;
     }
     .inbox-status {
@@ -497,7 +584,7 @@
       height: 430px;
       overflow: auto;
       padding: 16px;
-      background: rgba(15,23,42,0.28);
+      background: var(--panel-contrast);
     }
     .inbox-message {
       max-width: 78%;
@@ -525,7 +612,7 @@
       font-size: 0.72rem;
     }
     .inbox-composer {
-      border-top: 1px solid rgba(148,163,184,0.16);
+      border-top: 1px solid var(--border-subtle);
       border-bottom: 0;
       display: grid;
       gap: 10px;
@@ -534,7 +621,7 @@
       min-height: 430px;
       display: grid;
       place-items: center;
-      color: #cbd5e1;
+      color: var(--text-muted);
       text-align: center;
       padding: 18px;
     }
@@ -607,6 +694,30 @@
       margin-bottom: 16px;
     }
     .modal-header h2 { margin: 0; }
+    body.theme-light header p,
+    body.theme-light .contact-meta,
+    body.theme-light .bulk-status,
+    body.theme-light .empty-state {
+      color: var(--text-muted);
+      opacity: 1;
+    }
+    body.theme-light .flow-item,
+    body.theme-light .data-table-wrap {
+      border-color: var(--border-soft);
+    }
+    body.theme-light .data-table th {
+      color: #263246;
+      background: var(--panel-raised);
+    }
+    body.theme-light .data-table td {
+      border-bottom-color: var(--border-soft);
+    }
+    body.theme-light .modal-backdrop {
+      background: rgba(15,23,42,0.42);
+    }
+    body.theme-light .inbox-message.in {
+      border: 1px solid var(--border-soft);
+    }
     
     @media (max-width: 600px) {
       header h1 { font-size: 1.4rem; }
@@ -684,6 +795,13 @@
       </div>
 
       <div class="sidebar-footer">
+        <div class="theme-control">
+          <label>Tema do painel</label>
+          <div class="theme-toggle" role="group" aria-label="Tema do painel">
+            <button class="theme-option active" id="themeDark" type="button" data-theme="dark">Escuro</button>
+            <button class="theme-option" id="themeLight" type="button" data-theme="light">Claro</button>
+          </div>
+        </div>
         <a href="https://wa.me/557185279135" target="_blank" class="btn btn-success btn-small" style="text-decoration:none; text-align:center;">Fale Comigo</a>
         <button class="btn btn-small" id="btnSair" style="background:#475569; color:white;">Sair</button>
       </div>
@@ -1269,6 +1387,7 @@
     const $ = id => document.getElementById(id);
     const appShell = $('app-shell');
     const toggleSidebar = $('toggleSidebar');
+    const THEME_STORAGE_KEY = 'agenteIaCrmTheme';
     window.dashboardState = {
       whatsappConectado: false,
       contatos: 0,
@@ -1278,6 +1397,20 @@
       botSilenciado: false,
       enviosSilenciados: false
     };
+
+    function aplicarTemaPainel(theme) {
+      const tema = theme === 'light' ? 'light' : 'dark';
+      document.body.classList.toggle('theme-light', tema === 'light');
+      document.querySelectorAll('.theme-option').forEach((button) => {
+        button.classList.toggle('active', button.dataset.theme === tema);
+      });
+      localStorage.setItem(THEME_STORAGE_KEY, tema);
+    }
+
+    aplicarTemaPainel(localStorage.getItem(THEME_STORAGE_KEY) || 'dark');
+    document.querySelectorAll('.theme-option').forEach((button) => {
+      button.addEventListener('click', () => aplicarTemaPainel(button.dataset.theme));
+    });
 
     if (toggleSidebar && appShell) {
       toggleSidebar.addEventListener('click', () => {
