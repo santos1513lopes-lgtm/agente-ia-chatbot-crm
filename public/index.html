@@ -437,6 +437,107 @@
       margin-bottom: 8px;
       color: #065f46;
     }
+    .inbox-layout {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 16px;
+      min-height: 620px;
+    }
+    .inbox-list,
+    .inbox-chat {
+      background: var(--panel-bg);
+      border: 1px solid rgba(148,163,184,0.18);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .inbox-list-header,
+    .inbox-chat-header,
+    .inbox-composer {
+      padding: 14px;
+      border-bottom: 1px solid rgba(148,163,184,0.16);
+    }
+    .inbox-list-items {
+      max-height: 560px;
+      overflow: auto;
+    }
+    .inbox-conversation {
+      width: 100%;
+      border: 0;
+      border-bottom: 1px solid rgba(148,163,184,0.12);
+      background: transparent;
+      color: var(--text-main);
+      text-align: left;
+      padding: 12px 14px;
+      cursor: pointer;
+    }
+    .inbox-conversation:hover,
+    .inbox-conversation.active {
+      background: rgba(37,99,235,0.2);
+    }
+    .inbox-conversation-title {
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .inbox-conversation-meta {
+      color: #cbd5e1;
+      font-size: 0.82rem;
+    }
+    .inbox-status {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 8px;
+      margin-top: 6px;
+      background: rgba(59,130,246,0.18);
+      color: #bfdbfe;
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+    .inbox-messages {
+      height: 430px;
+      overflow: auto;
+      padding: 16px;
+      background: rgba(15,23,42,0.28);
+    }
+    .inbox-message {
+      max-width: 78%;
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 0.92rem;
+    }
+    .inbox-message.in {
+      background: #f8fafc;
+      color: #0f172a;
+      margin-right: auto;
+    }
+    .inbox-message.out {
+      background: #2563eb;
+      color: white;
+      margin-left: auto;
+    }
+    .inbox-message small {
+      display: block;
+      margin-top: 6px;
+      opacity: 0.72;
+      font-size: 0.72rem;
+    }
+    .inbox-composer {
+      border-top: 1px solid rgba(148,163,184,0.16);
+      border-bottom: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .inbox-empty {
+      min-height: 430px;
+      display: grid;
+      place-items: center;
+      color: #cbd5e1;
+      text-align: center;
+      padding: 18px;
+    }
     .link-pill {
       display: inline-block;
       margin-top: 10px;
@@ -514,6 +615,7 @@
       .dashboard-grid { grid-template-columns: 1fr; }
       .dashboard-panels { grid-template-columns: 1fr; }
       .message-builder { grid-template-columns: 1fr; }
+      .inbox-layout { grid-template-columns: 1fr; }
     }
     @media (max-width: 820px) {
       .crm-layout { grid-template-columns: 1fr; }
@@ -571,6 +673,7 @@
 
       <div class="tab-buttons">
         <button class="tab-btn active" data-tab="dashboard" title="Dashboard">📊 <span class="sidebar-label">Dashboard</span></button>
+        <button class="tab-btn" data-tab="inbox" title="Caixa de Entrada">💬 <span class="sidebar-label">Caixa de Entrada</span></button>
         <button class="tab-btn" data-tab="whatsapp" title="Conectar WhatsApp">📲 <span class="sidebar-label">Conectar WhatsApp</span></button>
         <button class="tab-btn" data-tab="groq" title="Chave Groq (IA)">🔑 <span class="sidebar-label">Chave Groq (IA)</span></button>
         <button class="tab-btn" data-tab="contatos" title="Contatos">👥 <span class="sidebar-label">Contatos</span></button>
@@ -654,6 +757,62 @@
           <h2>Próximos passos</h2>
           <div class="contact-meta">
             Use a aba Contatos para importar sua planilha, Campanhas e Envios para disparos e Fluxos Condicionais para entregar materiais por nome, matrícula ou telefone.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aba Caixa de Entrada -->
+    <div id="tab-inbox" class="tab-content">
+      <div class="card">
+        <h2>💬 Caixa de Entrada</h2>
+        <p class="dica">
+          Acompanhe conversas recebidas pelo WhatsApp conectado, responda pelo painel e assuma atendimentos quando precisar pausar o bot naquela conversa.
+        </p>
+        <div class="inbox-layout">
+          <div class="inbox-list">
+            <div class="inbox-list-header">
+              <div class="form-group" style="margin-bottom:10px;">
+                <label for="inboxPesquisa">Pesquisar conversas</label>
+                <input type="search" id="inboxPesquisa" placeholder="Nome, telefone, status ou mensagem">
+              </div>
+              <button class="btn btn-small btn-primary" id="inboxAtualizar">Atualizar</button>
+            </div>
+            <div id="inboxConversas" class="inbox-list-items">
+              <div class="empty-state">Nenhuma conversa recebida ainda.</div>
+            </div>
+          </div>
+          <div class="inbox-chat">
+            <div class="inbox-chat-header">
+              <div class="contact-header">
+                <div>
+                  <div class="contact-name" id="inboxChatNome">Selecione uma conversa</div>
+                  <div class="contact-phone" id="inboxChatTelefone">As mensagens aparecerão aqui.</div>
+                  <div class="contact-meta" id="inboxChatStatus"></div>
+                </div>
+                <div class="table-actions">
+                  <select id="inboxStatusSelect" style="min-width:160px;">
+                    <option value="novo">Novo</option>
+                    <option value="em_atendimento">Em atendimento</option>
+                    <option value="aguardando_cliente">Aguardando cliente</option>
+                    <option value="resolvido">Resolvido</option>
+                    <option value="bot">Bot atendendo</option>
+                  </select>
+                  <button class="btn btn-small btn-success" id="inboxAssumir">Assumir</button>
+                  <button class="btn btn-small" id="inboxLiberarBot" style="background:#475569; color:white;">Liberar bot</button>
+                </div>
+              </div>
+            </div>
+            <div id="inboxMensagens" class="inbox-messages">
+              <div class="inbox-empty">Escolha uma conversa para visualizar o histórico.</div>
+            </div>
+            <div class="inbox-composer">
+              <textarea id="inboxTexto" placeholder="Digite sua resposta pelo painel"></textarea>
+              <div class="schedule-actions">
+                <button class="btn btn-success" id="inboxEnviar">Enviar resposta</button>
+                <span id="inboxFeedback" class="contact-meta"></span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1172,6 +1331,196 @@
       $('btnLimparSessao').style.display = s.conectado ? 'none' : 'inline-block';
     });
 
+    const inboxState = {
+      conversas: [],
+      selecionada: null,
+      carregando: false
+    };
+
+    function inboxNormalize(value) {
+      return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+    }
+
+    function inboxStatusLabel(status) {
+      const labels = {
+        novo: 'Novo',
+        em_atendimento: 'Em atendimento',
+        aguardando_cliente: 'Aguardando cliente',
+        resolvido: 'Resolvido',
+        bot: 'Bot atendendo'
+      };
+      return labels[status] || 'Novo';
+    }
+
+    function inboxData(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('pt-BR');
+    }
+
+    function inboxTextoBusca(conversa) {
+      return [
+        conversa.nome,
+        conversa.telefone,
+        conversa.status,
+        conversa.responsavel,
+        conversa.ultimaMensagem?.texto
+      ].join(' ');
+    }
+
+    function renderInboxConversas() {
+      const target = $('inboxConversas');
+      if (!target) return;
+      const termo = inboxNormalize($('inboxPesquisa')?.value || '');
+      const conversas = inboxState.conversas.filter(conversa => inboxNormalize(inboxTextoBusca(conversa)).includes(termo));
+      if (!conversas.length) {
+        target.innerHTML = '<div class="empty-state">Nenhuma conversa encontrada.</div>';
+        return;
+      }
+      target.innerHTML = conversas.map((conversa) => {
+        const active = inboxState.selecionada?.chatId === conversa.chatId ? ' active' : '';
+        const ultima = conversa.ultimaMensagem?.texto || 'Sem mensagens registradas';
+        const direcao = conversa.ultimaMensagem?.direcao === 'out' ? 'Você: ' : '';
+        return `
+          <button class="inbox-conversation${active}" data-inbox-chat="${escapeHtml(conversa.chatId)}">
+            <div class="inbox-conversation-title">${escapeHtml(conversa.nome || conversa.telefone || 'Contato')}</div>
+            <div class="inbox-conversation-meta">${escapeHtml(conversa.telefone || '')}</div>
+            <div class="inbox-conversation-meta">${escapeHtml(direcao + ultima).slice(0, 120)}</div>
+            <span class="inbox-status">${escapeHtml(inboxStatusLabel(conversa.status))}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderInboxConversa(conversa) {
+      inboxState.selecionada = conversa;
+      renderInboxConversas();
+      if (!$('inboxChatNome')) return;
+      if (!conversa) {
+        $('inboxChatNome').textContent = 'Selecione uma conversa';
+        $('inboxChatTelefone').textContent = 'As mensagens aparecerão aqui.';
+        $('inboxChatStatus').textContent = '';
+        $('inboxMensagens').innerHTML = '<div class="inbox-empty">Escolha uma conversa para visualizar o histórico.</div>';
+        return;
+      }
+      $('inboxChatNome').textContent = conversa.nome || conversa.telefone || 'Contato';
+      $('inboxChatTelefone').textContent = conversa.telefone || conversa.chatId;
+      $('inboxChatStatus').textContent = `${inboxStatusLabel(conversa.status)}${conversa.responsavel ? ' · ' + conversa.responsavel : ''}${conversa.botSilenciado ? ' · bot pausado' : ''}`;
+      if ($('inboxStatusSelect')) $('inboxStatusSelect').value = conversa.status || 'novo';
+      const mensagens = conversa.mensagens || [];
+      if (!mensagens.length) {
+        $('inboxMensagens').innerHTML = '<div class="inbox-empty">Ainda não há mensagens registradas nesta conversa.</div>';
+        return;
+      }
+      $('inboxMensagens').innerHTML = mensagens.map((mensagem) => {
+        const classe = mensagem.direcao === 'out' ? 'out' : 'in';
+        const origem = mensagem.origem === 'humano' ? 'Atendente' : mensagem.origem === 'bot' ? 'Bot' : 'Cliente';
+        return `
+          <div class="inbox-message ${classe}">
+            ${escapeHtml(mensagem.texto || '[mídia/arquivo]')}
+            <small>${escapeHtml(origem)} · ${escapeHtml(inboxData(mensagem.criadoEm))}</small>
+          </div>
+        `;
+      }).join('');
+      $('inboxMensagens').scrollTop = $('inboxMensagens').scrollHeight;
+    }
+
+    async function carregarInbox() {
+      if (inboxState.carregando) return;
+      inboxState.carregando = true;
+      try {
+        const resposta = await fetch('/api/inbox');
+        const json = await resposta.json();
+        if (json.ok) {
+          inboxState.conversas = json.conversas || [];
+          renderInboxConversas();
+        }
+      } finally {
+        inboxState.carregando = false;
+      }
+    }
+
+    async function abrirInboxConversa(chatId) {
+      const resposta = await fetch(`/api/inbox/conversa?chatId=${encodeURIComponent(chatId)}`);
+      const json = await resposta.json();
+      if (json.ok) renderInboxConversa(json.conversa);
+    }
+
+    async function enviarInboxResposta() {
+      const conversa = inboxState.selecionada;
+      const texto = $('inboxTexto')?.value.trim();
+      if (!conversa) return alert('Selecione uma conversa.');
+      if (!texto) return alert('Digite uma resposta.');
+      $('inboxEnviar').disabled = true;
+      $('inboxFeedback').textContent = 'Enviando...';
+      try {
+        const resposta = await fetch('/api/inbox/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId: conversa.chatId, texto })
+        });
+        const json = await resposta.json();
+        if (!json.ok) throw new Error(json.erro || 'Erro ao enviar');
+        $('inboxTexto').value = '';
+        $('inboxFeedback').textContent = 'Mensagem enviada.';
+        await abrirInboxConversa(conversa.chatId);
+      } catch (error) {
+        $('inboxFeedback').textContent = error.message || 'Erro ao enviar.';
+      } finally {
+        $('inboxEnviar').disabled = false;
+      }
+    }
+
+    async function atualizarInboxStatus(status) {
+      const conversa = inboxState.selecionada;
+      if (!conversa) return;
+      const resposta = await fetch('/api/inbox/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: conversa.chatId, status })
+      });
+      const json = await resposta.json();
+      if (json.ok) renderInboxConversa(json.conversa);
+    }
+
+    async function assumirInboxConversa() {
+      const conversa = inboxState.selecionada;
+      if (!conversa) return alert('Selecione uma conversa.');
+      const resposta = await fetch('/api/inbox/assumir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: conversa.chatId, responsavel: 'Atendente' })
+      });
+      const json = await resposta.json();
+      if (json.ok) renderInboxConversa(json.conversa);
+    }
+
+    async function liberarInboxBot() {
+      const conversa = inboxState.selecionada;
+      if (!conversa) return alert('Selecione uma conversa.');
+      const resposta = await fetch('/api/inbox/liberar-bot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: conversa.chatId })
+      });
+      const json = await resposta.json();
+      if (json.ok) renderInboxConversa(json.conversa);
+    }
+
+    socket.on('inbox:summary', (conversas) => {
+      inboxState.conversas = conversas || [];
+      renderInboxConversas();
+    });
+    socket.on('inbox:conversation', (conversa) => {
+      if (inboxState.selecionada?.chatId === conversa.chatId) {
+        renderInboxConversa(conversa);
+      }
+    });
+
     // Botões Gerar QR, Limpar sessão e Desconectar
     $('btnGerarQR').addEventListener('click', async () => {
       $('btnGerarQR').disabled = true;
@@ -1209,6 +1558,25 @@
       $('btnDesconectar').disabled = false;
       $('btnDesconectar').style.display = 'none';
     });
+
+    if ($('inboxAtualizar')) $('inboxAtualizar').addEventListener('click', carregarInbox);
+    if ($('inboxPesquisa')) $('inboxPesquisa').addEventListener('input', renderInboxConversas);
+    if ($('inboxConversas')) {
+      $('inboxConversas').addEventListener('click', (event) => {
+        const botao = event.target.closest('[data-inbox-chat]');
+        if (botao) abrirInboxConversa(botao.dataset.inboxChat);
+      });
+    }
+    if ($('inboxEnviar')) $('inboxEnviar').addEventListener('click', enviarInboxResposta);
+    if ($('inboxTexto')) {
+      $('inboxTexto').addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) enviarInboxResposta();
+      });
+    }
+    if ($('inboxStatusSelect')) $('inboxStatusSelect').addEventListener('change', () => atualizarInboxStatus($('inboxStatusSelect').value));
+    if ($('inboxAssumir')) $('inboxAssumir').addEventListener('click', assumirInboxConversa);
+    if ($('inboxLiberarBot')) $('inboxLiberarBot').addEventListener('click', liberarInboxBot);
+    carregarInbox();
 
     // Carregar config
     async function carregarConfig() {

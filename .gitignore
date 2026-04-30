@@ -4,6 +4,7 @@ node_modules/
 
 config.json
 silencio_chats.json
+inbox.json
 Chave_API.txt
 .bak.js
 

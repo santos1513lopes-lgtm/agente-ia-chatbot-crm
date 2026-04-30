@@ -20,6 +20,7 @@ const silencio = createSilencio(__dirname);
 // =====================================
 const PORT = 3000;
 const CONFIG_FILE = path.join(__dirname, "config.json");
+const INBOX_FILE = path.join(__dirname, "inbox.json");
 const SKIP_WHATSAPP = process.env.SKIP_WHATSAPP === "1";
 
 let groqClient = null;
@@ -32,6 +33,8 @@ let io = null;
 const estadosConversa = new Map();
 const WHATSAPP_WATCHDOG_INTERVAL_MS = 2 * 60 * 1000;
 const WHATSAPP_STARTUP_TIMEOUT_MS = 5 * 60 * 1000;
+const INBOX_MAX_CONVERSAS = 300;
+const INBOX_MAX_MENSAGENS_POR_CHAT = 120;
 
 function normalizeText(value) {
   return String(value || "")
@@ -213,6 +216,114 @@ function renderHandoffMessage(template, data) {
   });
 }
 
+function loadInbox() {
+  try {
+    if (fs.existsSync(INBOX_FILE)) {
+      const data = JSON.parse(fs.readFileSync(INBOX_FILE, "utf8"));
+      return data && typeof data === "object" ? data : { conversas: [] };
+    }
+  } catch (e) {
+    console.error("Erro ao carregar inbox:", e);
+  }
+  return { conversas: [] };
+}
+
+function saveInbox(inbox) {
+  try {
+    const conversas = Array.isArray(inbox.conversas) ? inbox.conversas : [];
+    const ordenadas = conversas
+      .sort((a, b) => new Date(b.atualizadoEm || 0) - new Date(a.atualizadoEm || 0))
+      .slice(0, INBOX_MAX_CONVERSAS)
+      .map((conversa) => ({
+        ...conversa,
+        mensagens: (conversa.mensagens || []).slice(-INBOX_MAX_MENSAGENS_POR_CHAT),
+      }));
+    fs.writeFileSync(INBOX_FILE, JSON.stringify({ conversas: ordenadas }, null, 2));
+  } catch (e) {
+    console.error("Erro ao salvar inbox:", e);
+  }
+}
+
+function getInboxSummary(inbox = loadInbox()) {
+  return (inbox.conversas || [])
+    .map(({ mensagens, ...conversa }) => ({
+      ...conversa,
+      ultimaMensagem: mensagens?.[mensagens.length - 1] || null,
+      mensagensCount: mensagens?.length || 0,
+    }))
+    .sort((a, b) => new Date(b.atualizadoEm || 0) - new Date(a.atualizadoEm || 0));
+}
+
+function getInboxConversa(chatId, inbox = loadInbox()) {
+  return (inbox.conversas || []).find((conversa) => conversa.chatId === chatId) || null;
+}
+
+function registrarInbox({ chatId, telefone, nome, direcao, texto, origem, tipo = "text", messageId = null }) {
+  if (!chatId) return null;
+  const inbox = loadInbox();
+  const agora = new Date().toISOString();
+  let conversa = getInboxConversa(chatId, inbox);
+  if (!conversa) {
+    conversa = {
+      chatId,
+      telefone: telefone || String(chatId).replace(/\D/g, ""),
+      nome: nome || telefone || String(chatId).replace("@c.us", ""),
+      status: "novo",
+      responsavel: "",
+      botSilenciado: false,
+      criadoEm: agora,
+      atualizadoEm: agora,
+      mensagens: [],
+    };
+    inbox.conversas.push(conversa);
+  }
+
+  if (nome && (!conversa.nome || conversa.nome === conversa.telefone)) conversa.nome = nome;
+  if (telefone) conversa.telefone = telefone;
+  conversa.atualizadoEm = agora;
+  if (direcao === "in" && conversa.status === "resolvido") conversa.status = "novo";
+
+  conversa.mensagens.push({
+    id: messageId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    direcao,
+    origem,
+    tipo,
+    texto: texto || "",
+    criadoEm: agora,
+  });
+  conversa.mensagens = conversa.mensagens.slice(-INBOX_MAX_MENSAGENS_POR_CHAT);
+  saveInbox(inbox);
+  if (io) {
+    io.emit("inbox:summary", getInboxSummary(inbox));
+    io.emit("inbox:conversation", conversa);
+  }
+  return conversa;
+}
+
+function atualizarInboxConversa(chatId, updates = {}) {
+  const inbox = loadInbox();
+  const conversa = getInboxConversa(chatId, inbox);
+  if (!conversa) return null;
+  Object.assign(conversa, updates, { atualizadoEm: new Date().toISOString() });
+  saveInbox(inbox);
+  if (io) {
+    io.emit("inbox:summary", getInboxSummary(inbox));
+    io.emit("inbox:conversation", conversa);
+  }
+  return conversa;
+}
+
+function registrarSaidaInbox(chatId, texto, origem = "bot", message = null) {
+  return registrarInbox({
+    chatId,
+    telefone: String(chatId || "").replace(/\D/g, ""),
+    direcao: "out",
+    texto,
+    origem,
+    messageId: message?.id?._serialized || null,
+  });
+}
+
 function rowMatchesConditionalQuery(row, camposBusca, query) {
   return camposBusca.some((campo) => {
     const value = normalizeText(row[campo]);
@@ -273,6 +384,7 @@ async function sendConditionalRecordsResponse({ msg, chatId, flow, rows, typing 
       r = await msg.reply(resposta || "Encontrei seu cadastro.");
     }
     silencio.registrarMensagemDoBot(r);
+    registrarSaidaInbox(chatId, resposta || "Encontrei seu cadastro.", "bot", r);
     if (index < validRows.length - 1) await delay(1000);
   }
 
@@ -280,6 +392,7 @@ async function sendConditionalRecordsResponse({ msg, chatId, flow, rows, typing 
     await delay(1000);
     const finalMsg = await whatsappClient.sendMessage(chatId, mensagemFinal);
     silencio.registrarMensagemDoBot(finalMsg);
+    registrarSaidaInbox(chatId, mensagemFinal, "bot", finalMsg);
   }
 }
 
@@ -441,6 +554,85 @@ app.post("/api/silencio-chats", (req, res) => {
 app.post("/api/silencio-chats/limpar", (req, res) => {
   silencio.limparTodos();
   res.json({ ok: true, chats: silencio.listar() });
+});
+
+app.get("/api/inbox", (req, res) => {
+  const inbox = loadInbox();
+  res.json({ ok: true, conversas: getInboxSummary(inbox) });
+});
+
+app.get("/api/inbox/conversa", (req, res) => {
+  const chatId = String(req.query.chatId || "");
+  const conversa = getInboxConversa(chatId);
+  res.json({ ok: true, conversa });
+});
+
+app.post("/api/inbox/send", async (req, res) => {
+  try {
+    if (!whatsappClient || !whatsappConectado) {
+      return res.status(400).json({ ok: false, erro: "WhatsApp não está conectado" });
+    }
+    const chatId = String(req.body.chatId || "");
+    const texto = String(req.body.texto || "").trim();
+    if (!chatId || !chatId.endsWith("@c.us")) return res.status(400).json({ ok: false, erro: "Conversa inválida" });
+    if (!texto) return res.status(400).json({ ok: false, erro: "Digite uma mensagem" });
+
+    const sent = await whatsappClient.sendMessage(chatId, texto);
+    silencio.registrarMensagemDoBot(sent);
+    silencio.silenciarChat(chatId);
+    const conversa = registrarInbox({
+      chatId,
+      telefone: chatId.replace(/\D/g, ""),
+      direcao: "out",
+      texto,
+      origem: "humano",
+      messageId: sent?.id?._serialized || null,
+    });
+    if (conversa) {
+      atualizarInboxConversa(chatId, {
+        status: conversa.status === "novo" ? "em_atendimento" : conversa.status,
+        responsavel: conversa.responsavel || "Atendente",
+        botSilenciado: true,
+      });
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Erro ao enviar pela inbox:", e);
+    res.status(500).json({ ok: false, erro: e.message || "Erro ao enviar mensagem" });
+  }
+});
+
+app.post("/api/inbox/status", (req, res) => {
+  const chatId = String(req.body.chatId || "");
+  const status = String(req.body.status || "novo");
+  const permitidos = new Set(["novo", "em_atendimento", "aguardando_cliente", "resolvido", "bot"]);
+  if (!chatId || !permitidos.has(status)) return res.status(400).json({ ok: false, erro: "Status inválido" });
+  const conversa = atualizarInboxConversa(chatId, { status });
+  res.json({ ok: true, conversa });
+});
+
+app.post("/api/inbox/assumir", (req, res) => {
+  const chatId = String(req.body.chatId || "");
+  if (!chatId) return res.status(400).json({ ok: false, erro: "Conversa inválida" });
+  silencio.silenciarChat(chatId);
+  const conversa = atualizarInboxConversa(chatId, {
+    status: "em_atendimento",
+    responsavel: String(req.body.responsavel || "Atendente").trim() || "Atendente",
+    botSilenciado: true,
+  });
+  res.json({ ok: true, conversa });
+});
+
+app.post("/api/inbox/liberar-bot", (req, res) => {
+  const chatId = String(req.body.chatId || "");
+  if (!chatId) return res.status(400).json({ ok: false, erro: "Conversa inválida" });
+  silencio.desilenciarChat(chatId);
+  const conversa = atualizarInboxConversa(chatId, {
+    status: "bot",
+    responsavel: "",
+    botSilenciado: false,
+  });
+  res.json({ ok: true, conversa });
 });
 
 app.post("/api/csv-url", async (req, res) => {
@@ -894,16 +1086,27 @@ async function handleMessage(msg) {
     const chat = await msg.getChat();
     if (chat.isGroup) return;
     const chatId = chat.id._serialized;
+    let contatoInfo = null;
+    try {
+      contatoInfo = await msg.getContact();
+    } catch (e) {}
+    const telefoneInbox = from.replace(/\D/g, "");
+    const nomeInbox = contatoInfo?.name || contatoInfo?.pushname || chat.name || telefoneInbox;
 
     if (msg.fromMe) {
       if (silencio.ehMensagemDoBot(msg)) return;
+      registrarInbox({
+        chatId,
+        telefone: telefoneInbox,
+        nome: nomeInbox,
+        direcao: "out",
+        texto: msg.body || "",
+        origem: "humano",
+        messageId: msg.id?._serialized || null,
+      });
       silencio.silenciarChat(chatId);
       return;
     }
-
-    if (config.humanoAtendeu) return;
-    if (silencio.estaSilenciado(chatId)) return;
-    if (config.silenciarBot) return;
 
     const MAX_IDADE_SEGUNDOS = 300;
     const agora = Math.floor(Date.now() / 1000);
@@ -911,10 +1114,27 @@ async function handleMessage(msg) {
     if (ts > 0 && (agora - ts) > MAX_IDADE_SEGUNDOS) return;
 
     const texto = msg.body ? msg.body.trim() : "";
+    if (texto) {
+      registrarInbox({
+        chatId,
+        telefone: telefoneInbox,
+        nome: nomeInbox,
+        direcao: "in",
+        texto,
+        origem: "cliente",
+        messageId: msg.id?._serialized || null,
+      });
+    }
+
+    if (config.humanoAtendeu) return;
+    if (silencio.estaSilenciado(chatId)) return;
+    if (config.silenciarBot) return;
+
     if (silencio.textoEhOptOut(texto)) {
       silencio.silenciarChat(chatId);
       const r = await msg.reply("Ok! Pausamos o assistente automático nesta conversa. Quando precisar, é só chamar no suporte.");
       silencio.registrarMensagemDoBot(r);
+      registrarSaidaInbox(chatId, "Ok! Pausamos o assistente automático nesta conversa. Quando precisar, é só chamar no suporte.", "bot", r);
       return;
     }
     if (!texto) return;
@@ -931,6 +1151,7 @@ async function handleMessage(msg) {
       await typing();
       const r = await msg.reply(handoff.respostaCliente || "Certo, vou encaminhar você para um atendente. Aguarde um instante.");
       silencio.registrarMensagemDoBot(r);
+      registrarSaidaInbox(chatId, handoff.respostaCliente || "Certo, vou encaminhar você para um atendente. Aguarde um instante.", "bot", r);
       silencio.silenciarChat(chatId);
 
       const numeroAtendente = String(handoff.numeroAtendente || "").replace(/\D/g, "");
@@ -970,6 +1191,7 @@ async function handleMessage(msg) {
         await typing();
         const r = await msg.reply(flow.respostaNaoEncontrado || "Não encontrei seu cadastro. Confira os dados e tente novamente.");
         silencio.registrarMensagemDoBot(r);
+        registrarSaidaInbox(chatId, flow.respostaNaoEncontrado || "Não encontrei seu cadastro. Confira os dados e tente novamente.", "bot", r);
         return;
       }
       estadosConversa.delete(chatId);
@@ -986,6 +1208,7 @@ async function handleMessage(msg) {
       await typing();
       const r = await msg.reply(conditionalFlow.pergunta || "Digite os dados para consulta.");
       silencio.registrarMensagemDoBot(r);
+      registrarSaidaInbox(chatId, conditionalFlow.pergunta || "Digite os dados para consulta.", "bot", r);
       return;
     }
 
@@ -1019,11 +1242,14 @@ async function handleMessage(msg) {
     await typing();
     const r = await msg.reply(resposta);
     silencio.registrarMensagemDoBot(r);
+    registrarSaidaInbox(chatId, resposta, "bot", r);
   } catch (error) {
     console.error("❌ Erro ao processar mensagem:", error);
     try {
       const r = await msg.reply("Ocorreu um erro. Tente novamente em instantes.");
       silencio.registrarMensagemDoBot(r);
+      const chatId = msg.from && msg.from.endsWith("@c.us") ? msg.from : null;
+      if (chatId) registrarSaidaInbox(chatId, "Ocorreu um erro. Tente novamente em instantes.", "bot", r);
     } catch (e) {}
   }
 }
@@ -1036,6 +1262,7 @@ io.on("connection", (socket) => {
     conectado: whatsappConectado,
     mensagem: whatsappConectado ? "WhatsApp conectado!" : "Conecte escaneando o QR Code",
   });
+  socket.emit("inbox:summary", getInboxSummary());
   if (!whatsappConectado) {
     socket.emit("qr", "loading");
   }
