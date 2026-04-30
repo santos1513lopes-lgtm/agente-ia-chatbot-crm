@@ -540,6 +540,47 @@ app.get("/api/config/full", (req, res) => {
   res.json(config);
 });
 
+app.post("/api/short-links", (req, res) => {
+  try {
+    config = loadConfig();
+    const slug = normalizeText(req.body.slug)
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60);
+    const url = String(req.body.url || "").trim();
+    if (!slug) return res.status(400).json({ ok: false, erro: "Informe um apelido para o link curto" });
+    let parsed = null;
+    try {
+      parsed = new URL(url);
+    } catch (e) {}
+    if (!parsed || !["http:", "https:"].includes(parsed.protocol)) {
+      return res.status(400).json({ ok: false, erro: "Informe um link começando com http:// ou https://" });
+    }
+    config.shortLinks = {
+      ...(config.shortLinks || {}),
+      [slug]: {
+        url,
+        criadoEm: new Date().toISOString(),
+      },
+    };
+    saveConfig(config);
+    res.json({ ok: true, slug, shortUrl: `${req.protocol}://${req.get("host")}/s/${slug}` });
+  } catch (e) {
+    console.error("Erro ao criar link curto:", e);
+    res.status(500).json({ ok: false, erro: "Erro ao criar link curto" });
+  }
+});
+
+app.get("/s/:slug", (req, res) => {
+  config = loadConfig();
+  const slug = normalizeText(req.params.slug)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const destino = config.shortLinks?.[slug]?.url;
+  if (!destino) return res.status(404).send("Link não encontrado");
+  res.redirect(destino);
+});
+
 app.get("/api/silencio-chats", (req, res) => {
   res.json({ ok: true, chats: silencio.listar() });
 });
