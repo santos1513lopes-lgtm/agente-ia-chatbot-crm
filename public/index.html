@@ -142,28 +142,6 @@
     .sidebar-collapsed .sidebar-footer .btn::first-letter {
       font-size: 0;
     }
-    .sidebar-collapsed .theme-control {
-      padding: 6px;
-    }
-    .sidebar-collapsed .theme-control label {
-      display: none;
-    }
-    .sidebar-collapsed .theme-toggle {
-      grid-template-columns: 1fr;
-    }
-    .sidebar-collapsed .theme-option {
-      font-size: 0;
-      min-height: 30px;
-    }
-    .sidebar-collapsed .theme-option::before {
-      font-size: 0.9rem;
-    }
-    .sidebar-collapsed .theme-option[data-theme="dark"]::before {
-      content: "🌙";
-    }
-    .sidebar-collapsed .theme-option[data-theme="light"]::before {
-      content: "☀";
-    }
     .main-content {
       padding: 22px;
       overflow: hidden;
@@ -174,8 +152,35 @@
       border-bottom: 1px solid var(--border-subtle);
       margin-bottom: 20px;
     }
+    .app-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
     header h1 { font-size: 1.8rem; margin-bottom: 8px; }
     header p { opacity: 0.8; font-size: 0.95rem; }
+    .theme-icon-button {
+      flex: 0 0 auto;
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      background: var(--panel-bg);
+      color: var(--text-main);
+      box-shadow: var(--shadow-soft);
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+      transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    }
+    .theme-icon-button:hover {
+      background: var(--panel-raised);
+      border-color: var(--accent-blue);
+      transform: translateY(-1px);
+    }
     
     .card {
       background: var(--panel-bg);
@@ -368,48 +373,6 @@
       gap: 10px;
       padding-top: 14px;
       border-top: 1px solid var(--border-subtle);
-    }
-    .theme-control {
-      display: grid;
-      gap: 7px;
-      padding: 10px;
-      border: 1px solid var(--border-subtle);
-      border-radius: 8px;
-      background: var(--hover-soft);
-    }
-    .theme-control label {
-      color: var(--sidebar-muted);
-      font-size: 0.76rem;
-      font-weight: 700;
-    }
-    .theme-toggle {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 4px;
-      padding: 4px;
-      border-radius: 8px;
-      background: var(--panel-soft);
-    }
-    .theme-option {
-      border: 0;
-      border-radius: 6px;
-      padding: 7px 8px;
-      background: transparent;
-      color: var(--sidebar-text);
-      cursor: pointer;
-      font-weight: 700;
-      font-size: 0.78rem;
-    }
-    .theme-option.active {
-      background: var(--accent-blue);
-      color: #fff;
-    }
-    body.theme-light .theme-control {
-      background: rgba(255,255,255,0.1);
-      border-color: rgba(255,255,255,0.18);
-    }
-    body.theme-light .theme-toggle {
-      background: rgba(255,255,255,0.18);
     }
     .grid-2 {
       display: grid;
@@ -823,13 +786,6 @@
       </div>
 
       <div class="sidebar-footer">
-        <div class="theme-control">
-          <label>Tema do painel</label>
-          <div class="theme-toggle" role="group" aria-label="Tema do painel">
-            <button class="theme-option active" id="themeDark" type="button" data-theme="dark">Escuro</button>
-            <button class="theme-option" id="themeLight" type="button" data-theme="light">Claro</button>
-          </div>
-        </div>
         <a href="https://wa.me/557185279135" target="_blank" class="btn btn-success btn-small" style="text-decoration:none; text-align:center;">Fale Comigo</a>
         <button class="btn btn-small" id="btnSair" style="background:#475569; color:white;">Sair</button>
       </div>
@@ -837,9 +793,14 @@
 
     <main class="main-content">
       <div class="container">
-        <header>
-          <h1>Agente de IA + Chatbot WhatsApp</h1>
-          <p>Gerencie contatos, agendamentos, fluxos e IA em um painel único.</p>
+        <header class="app-header">
+          <div>
+            <h1>Agente de IA + Chatbot WhatsApp</h1>
+            <p>Gerencie contatos, agendamentos, fluxos e IA em um painel único.</p>
+          </div>
+          <button class="theme-icon-button" id="themeToggleButton" type="button" title="Alternar tema" aria-label="Alternar tema">
+            <span id="themeToggleIcon">🌙</span>
+          </button>
         </header>
 
     <!-- Aba Dashboard -->
@@ -1429,16 +1390,21 @@
     function aplicarTemaPainel(theme) {
       const tema = theme === 'light' ? 'light' : 'dark';
       document.body.classList.toggle('theme-light', tema === 'light');
-      document.querySelectorAll('.theme-option').forEach((button) => {
-        button.classList.toggle('active', button.dataset.theme === tema);
-      });
+      if ($('themeToggleIcon')) $('themeToggleIcon').textContent = tema === 'light' ? '☀️' : '🌙';
+      if ($('themeToggleButton')) {
+        $('themeToggleButton').title = tema === 'light' ? 'Tema claro ativo' : 'Tema escuro ativo';
+        $('themeToggleButton').setAttribute('aria-label', tema === 'light' ? 'Alternar para tema escuro' : 'Alternar para tema claro');
+      }
       localStorage.setItem(THEME_STORAGE_KEY, tema);
     }
 
     aplicarTemaPainel(localStorage.getItem(THEME_STORAGE_KEY) || 'dark');
-    document.querySelectorAll('.theme-option').forEach((button) => {
-      button.addEventListener('click', () => aplicarTemaPainel(button.dataset.theme));
-    });
+    if ($('themeToggleButton')) {
+      $('themeToggleButton').addEventListener('click', () => {
+        const temaAtual = document.body.classList.contains('theme-light') ? 'light' : 'dark';
+        aplicarTemaPainel(temaAtual === 'light' ? 'dark' : 'light');
+      });
+    }
 
     if (toggleSidebar && appShell) {
       toggleSidebar.addEventListener('click', () => {
