@@ -1144,10 +1144,6 @@
               <label for="agBotaoLink">Link opcional</label>
               <input type="url" id="agBotaoLink" placeholder="https://seulink.com">
             </div>
-            <div class="form-group">
-              <label for="agLinkSlug">Apelido do link curto opcional</label>
-              <input type="text" id="agLinkSlug" placeholder="material-2026">
-            </div>
           </div>
           <div>
             <div class="message-preview-title">Prévia da mensagem</div>
@@ -2576,7 +2572,6 @@
     const agBannerDescricao = document.getElementById("agBannerDescricao");
     const agBotaoTexto = document.getElementById("agBotaoTexto");
     const agBotaoLink = document.getElementById("agBotaoLink");
-    const agLinkSlug = document.getElementById("agLinkSlug");
     const agPreview = document.getElementById("agPreview");
     const agMensagemFinal = document.getElementById("agMensagemFinal");
     const agDelayBlocos = document.getElementById("agDelayBlocos");
@@ -2697,7 +2692,6 @@
       agBannerDescricao.value = "";
       agBotaoTexto.value = "";
       agBotaoLink.value = "";
-      agLinkSlug.value = "";
       agMensagemFinal.value = "";
       agDelayBlocos.value = "3";
       agArquivo.value = "";
@@ -3112,46 +3106,13 @@
       return arquivos;
     }
 
-    function slugifyLink(value) {
-      return String(value || "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 60);
-    }
-
-    function getLinkCampanhaPreview() {
-      const linkOriginal = agBotaoLink.value.trim();
-      if (!linkOriginal) return "";
-      const slug = slugifyLink(agLinkSlug ? agLinkSlug.value : "");
-      if (!slug) return linkOriginal;
-      return `${window.location.origin}/s/${slug}`;
-    }
-
-    async function prepararLinkCampanha() {
-      const url = agBotaoLink.value.trim();
-      if (!url) return "";
-      const slug = slugifyLink(agLinkSlug ? agLinkSlug.value : "");
-      if (!slug) return url;
-      const resposta = await fetch("/api/short-links", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, url })
-      });
-      const json = await resposta.json();
-      if (!json.ok) throw new Error(json.erro || "Não foi possível criar o link curto.");
-      return json.shortUrl || `${window.location.origin}/s/${slug}`;
-    }
-
-    function montarMensagemCampanha(temArquivo, linkPreparado = null) {
+    function montarMensagemCampanha(temArquivo) {
       const partes = [];
       const titulo = agBannerTitulo.value.trim();
       const descricao = agBannerDescricao.value.trim();
       const mensagemBase = agMensagem.value.trim();
       const textoBotao = agBotaoTexto.value.trim();
-      const linkBotao = linkPreparado !== null ? linkPreparado : getLinkCampanhaPreview();
+      const linkBotao = agBotaoLink.value.trim();
 
       if (titulo) partes.push(`*${titulo}*`);
       if (descricao) partes.push(descricao);
@@ -3192,17 +3153,15 @@
       if (!usuarioAtual) throw new Error("Entre no painel antes de usar agendamentos.");
       const contato = getContatoSelecionado();
       const temArquivos = getArquivosSelecionadosAgendamento().length > 0;
-      const mensagemPrevia = montarMensagemCampanha(temArquivos);
+      const mensagem = montarMensagemCampanha(temArquivos);
       const mensagemFinalBase = agMensagemFinal.value.trim();
       const delayBlocos = Math.max(0, Math.min(120, Number(agDelayBlocos.value) || 0));
       const dataHora = agDataHora.value;
       if (!contato) throw new Error("Selecione um contato.");
-      if (!mensagemPrevia && !temArquivos && !mensagemFinalBase) {
+      if (!mensagem && !temArquivos && !mensagemFinalBase) {
         throw new Error("Informe uma mensagem, finalização ou escolha um arquivo.");
       }
       if (exigirData && !dataHora) throw new Error("Informe a data e hora do agendamento.");
-      const linkPreparado = await prepararLinkCampanha();
-      const mensagem = montarMensagemCampanha(temArquivos, linkPreparado);
       const arquivos = await salvarArquivosAgendamento();
       const arquivo = arquivos[0] || null;
       return {
@@ -3428,7 +3387,7 @@
     salvarAgendamento.addEventListener("click", salvarNovoAgendamento);
     enviarAgora.addEventListener("click", enviarMensagemAgora);
     if (pesquisaAgendamentos) pesquisaAgendamentos.addEventListener("input", renderListaAgendamentos);
-    [agMensagem, agBannerTitulo, agBannerDescricao, agBotaoTexto, agBotaoLink, agLinkSlug].forEach((el) => {
+    [agMensagem, agBannerTitulo, agBannerDescricao, agBotaoTexto, agBotaoLink].forEach((el) => {
       if (el) el.addEventListener("input", atualizarPreviewCampanha);
     });
     if (agArquivo) agArquivo.addEventListener("change", renderPreviewArquivosAgendamento);
@@ -3443,7 +3402,7 @@
       const limite = Math.max(1, Math.min(50, Number(massaLimite.value) || 10));
       const contatosSelecionados = contatosCache.filter((contato) => idsSelecionados.includes(contato.id)).slice(0, limite);
       const temArquivos = getArquivosSelecionadosAgendamento().length > 0;
-      const mensagemPrevia = montarMensagemCampanha(temArquivos);
+      const mensagem = montarMensagemCampanha(temArquivos);
       const mensagemFinal = agMensagemFinal.value.trim();
       const delayBlocos = Math.max(0, Math.min(120, Number(agDelayBlocos.value) || 0));
       const dataHora = agDataHora.value;
@@ -3456,7 +3415,7 @@
         alert("Informe a data e hora do agendamento.");
         return;
       }
-      if (!mensagemPrevia && !temArquivos && !mensagemFinal) {
+      if (!mensagem && !temArquivos && !mensagemFinal) {
         alert("Informe uma mensagem, finalização ou escolha um arquivo.");
         return;
       }
@@ -3465,8 +3424,6 @@
       salvarMassa.disabled = true;
       massaStatus.textContent = "Salvando agendamento em massa...";
       try {
-        const linkPreparado = await prepararLinkCampanha();
-        const mensagem = montarMensagemCampanha(temArquivos, linkPreparado);
         const arquivos = await montarArquivosCompartilhados();
         const arquivo = arquivos[0] || null;
         const dataTimestamp = Timestamp.fromDate(new Date(dataHora));
@@ -3512,7 +3469,7 @@
       const intervalo = Math.max(10, Math.min(600, Number(massaIntervalo.value) || 30));
       const contatosSelecionados = contatosCache.filter((contato) => idsSelecionados.includes(contato.id)).slice(0, limite);
       const temArquivos = getArquivosSelecionadosAgendamento().length > 0;
-      const mensagemPrevia = montarMensagemCampanha(temArquivos);
+      const mensagem = montarMensagemCampanha(temArquivos);
       const mensagemFinal = agMensagemFinal.value.trim();
       const delayBlocos = Math.max(0, Math.min(120, Number(agDelayBlocos.value) || 0));
 
@@ -3520,7 +3477,7 @@
         alert("Selecione pelo menos um contato.");
         return;
       }
-      if (!mensagemPrevia && !temArquivos && !mensagemFinal) {
+      if (!mensagem && !temArquivos && !mensagemFinal) {
         alert("Informe uma mensagem, finalização ou escolha um arquivo.");
         return;
       }
@@ -3529,8 +3486,6 @@
       enviarMassa.disabled = true;
       massaStatus.textContent = "Preparando envio em massa...";
       try {
-        const linkPreparado = await prepararLinkCampanha();
-        const mensagem = montarMensagemCampanha(temArquivos, linkPreparado);
         const arquivos = await montarArquivosCompartilhados();
         const arquivo = arquivos[0] || null;
         for (let i = 0; i < contatosSelecionados.length; i++) {
