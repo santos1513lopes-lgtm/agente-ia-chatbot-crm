@@ -776,6 +776,10 @@
 
       <div class="card">
         <h2>📇 Lista de contatos</h2>
+        <div class="form-group">
+          <label for="pesquisaContatos">Pesquisar contatos</label>
+          <input type="search" id="pesquisaContatos" placeholder="Buscar por nome, WhatsApp, tag ou lista">
+        </div>
         <div id="listaContatos">
           <div class="empty-state">Entre no painel para carregar seus contatos.</div>
         </div>
@@ -877,6 +881,7 @@
         </div>
         <div class="form-group">
           <label>Selecionar contatos</label>
+          <input type="search" id="pesquisaContatosMassa" placeholder="Buscar contatos para envio em massa" style="margin-bottom:10px;">
           <div id="listaContatosMassa" class="bulk-list">
             <div class="empty-state">Cadastre contatos para enviar em massa.</div>
           </div>
@@ -900,6 +905,10 @@
 
       <div class="card">
         <h2>📨 Envios agendados</h2>
+        <div class="form-group">
+          <label for="pesquisaAgendamentos">Pesquisar envios</label>
+          <input type="search" id="pesquisaAgendamentos" placeholder="Buscar por contato, telefone, mensagem, status ou arquivo">
+        </div>
         <div id="listaAgendamentos">
           <div class="empty-state">Entre no painel para carregar seus agendamentos.</div>
         </div>
@@ -962,6 +971,7 @@
         </div>
         <div class="form-group">
           <label>Alunos e materiais cadastrados</label>
+          <input type="search" id="pesquisaCondicionais" placeholder="Buscar por aluno, matrícula, telefone, material, link ou arquivo" style="margin-bottom:10px;">
           <div id="condTabela" class="data-table-wrap"></div>
           <textarea id="condDadosCsv" style="display:none;" aria-hidden="true" tabindex="-1"></textarea>
         </div>
@@ -1430,7 +1440,26 @@
         target.innerHTML = '<div class="empty-state">Nenhum aluno/material cadastrado ainda. Use o botão verde para adicionar.</div>';
         return;
       }
-      const groups = agruparLinhasCondicionais(rows);
+      const termo = $('pesquisaCondicionais') ? $('pesquisaCondicionais').value : '';
+      const groups = agruparLinhasCondicionais(rows)
+        .map((group, originalIndex) => ({ ...group, originalIndex }))
+        .filter(group => textoIncluiBusca([
+          group.nome,
+          group.matricula,
+          group.telefone,
+          ...group.items.flatMap(({ row }) => [
+            row.material,
+            row.link,
+            row.senha,
+            row.pix,
+            row.arquivo,
+            row.mensagemfinal
+          ])
+        ].join(' '), termo));
+      if (!groups.length) {
+        target.innerHTML = '<div class="empty-state">Nenhum aluno/material encontrado para esta pesquisa.</div>';
+        return;
+      }
       target.innerHTML = `
         <table class="data-table">
           <thead>
@@ -1461,8 +1490,8 @@
                 </td>
                 <td>
                   <div class="table-actions">
-                    <button class="btn btn-small btn-success" data-add-material-cond="${groupIndex}">+ Material</button>
-                    <button class="btn btn-small" style="background:#dc2626; color:white;" data-delete-group-cond="${groupIndex}">Excluir aluno</button>
+                    <button class="btn btn-small btn-success" data-add-material-cond="${group.originalIndex}">+ Material</button>
+                    <button class="btn btn-small" style="background:#dc2626; color:white;" data-delete-group-cond="${group.originalIndex}">Excluir aluno</button>
                   </div>
                 </td>
               </tr>
@@ -1767,6 +1796,7 @@
     if ($('adicionarOutroMaterial')) $('adicionarOutroMaterial').addEventListener('click', adicionarOutroMaterialCondicional);
     if ($('condItemNome')) $('condItemNome').addEventListener('change', preencherCondItemPorContato);
     if ($('condDadosCsv')) $('condDadosCsv').addEventListener('input', renderCondTabela);
+    if ($('pesquisaCondicionais')) $('pesquisaCondicionais').addEventListener('input', renderCondTabela);
     if ($('condTabela')) {
       $('condTabela').addEventListener('click', (event) => {
         const editar = event.target.closest('[data-edit-cond]');
@@ -2005,6 +2035,7 @@
     const contatoModal = document.getElementById("contatoModal");
     const contatoModalTitulo = document.getElementById("contatoModalTitulo");
     const fecharContatoModal = document.getElementById("fecharContatoModal");
+    const pesquisaContatos = document.getElementById("pesquisaContatos");
     const agContato = document.getElementById("agContato");
     const agDataHora = document.getElementById("agDataHora");
     const agMensagem = document.getElementById("agMensagem");
@@ -2024,6 +2055,8 @@
     const enviarAgora = document.getElementById("enviarAgora");
     const listaAgendamentos = document.getElementById("listaAgendamentos");
     const listaContatosMassa = document.getElementById("listaContatosMassa");
+    const pesquisaContatosMassa = document.getElementById("pesquisaContatosMassa");
+    const pesquisaAgendamentos = document.getElementById("pesquisaAgendamentos");
     const massaListaFiltro = document.getElementById("massaListaFiltro");
     const selecionarListaMassa = document.getElementById("selecionarListaMassa");
     const limparListaMassa = document.getElementById("limparListaMassa");
@@ -2188,6 +2221,20 @@
       return div.innerHTML;
     }
 
+    function normalizarBusca(valor) {
+      return String(valor || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+    }
+
+    function textoIncluiBusca(texto, busca) {
+      const q = normalizarBusca(busca);
+      if (!q) return true;
+      return normalizarBusca(texto).includes(q);
+    }
+
     async function salvarNovoContato() {
       if (!usuarioAtual) {
         alert("Entre no painel antes de salvar contatos.");
@@ -2245,13 +2292,33 @@
       window.atualizarDashboard();
       renderListasContatos();
       renderOpcoesContatos();
+      renderListaContatos();
+    }
 
-      if (!contatos.length) {
+    function contatoCombinaPesquisa(contato, termo) {
+      return textoIncluiBusca([
+        contato.nome,
+        contato.telefone,
+        contato.tag,
+        contato.lista,
+        contato.observacoes
+      ].join(" "), termo);
+    }
+
+    function renderListaContatos() {
+      const termo = pesquisaContatos ? pesquisaContatos.value : "";
+      const contatosFiltrados = contatosCache.filter(contato => contatoCombinaPesquisa(contato, termo));
+
+      if (!contatosCache.length) {
         listaContatos.innerHTML = `<div class="empty-state">Nenhum contato cadastrado ainda.</div>`;
         return;
       }
+      if (!contatosFiltrados.length) {
+        listaContatos.innerHTML = `<div class="empty-state">Nenhum contato encontrado para esta pesquisa.</div>`;
+        return;
+      }
 
-      listaContatos.innerHTML = contatos.map((contato) => {
+      listaContatos.innerHTML = contatosFiltrados.map((contato) => {
         const tag = contato.tag ? `<div class="contact-meta">Tag: ${escapeText(contato.tag)}</div>` : "";
         const lista = contato.lista ? `<div class="contact-meta">Lista: ${escapeText(contato.lista)}</div>` : "";
         const obs = contato.observacoes ? `<div class="contact-meta">${escapeText(contato.observacoes)}</div>` : "";
@@ -2313,14 +2380,20 @@
 
     function renderContatosMassa() {
       const listaFiltro = massaListaFiltro ? massaListaFiltro.value : "";
+      const termo = pesquisaContatosMassa ? pesquisaContatosMassa.value : "";
       const contatosVisiveis = listaFiltro
         ? contatosCache.filter(contato => (contato.lista || "") === listaFiltro)
         : contatosCache;
-      if (!contatosVisiveis.length) {
+      const contatosFiltrados = contatosVisiveis.filter(contato => contatoCombinaPesquisa(contato, termo));
+      if (!contatosCache.length) {
         listaContatosMassa.innerHTML = `<div class="empty-state">Cadastre contatos para enviar em massa.</div>`;
         return;
       }
-      listaContatosMassa.innerHTML = contatosVisiveis.map((contato) => {
+      if (!contatosFiltrados.length) {
+        listaContatosMassa.innerHTML = `<div class="empty-state">Nenhum contato encontrado para este filtro.</div>`;
+        return;
+      }
+      listaContatosMassa.innerHTML = contatosFiltrados.map((contato) => {
         const lista = contato.lista ? ` · ${escapeText(contato.lista)}` : "";
         return `
           <label class="bulk-contact">
@@ -2355,7 +2428,9 @@
         if (event.target.id === "contatoModal") fecharFormularioContato();
       });
     }
+    if (pesquisaContatos) pesquisaContatos.addEventListener("input", renderListaContatos);
     if (massaListaFiltro) massaListaFiltro.addEventListener("change", renderContatosMassa);
+    if (pesquisaContatosMassa) pesquisaContatosMassa.addEventListener("input", renderContatosMassa);
     if (selecionarListaMassa) selecionarListaMassa.addEventListener("click", () => {
       listaContatosMassa.querySelectorAll('input[type="checkbox"]').forEach(input => {
         input.checked = true;
@@ -2655,13 +2730,39 @@
       window.dashboardState.enviados = agendamentos.filter(item => item.status === "enviado").length;
       window.dashboardState.erros = agendamentos.filter(item => item.status === "erro").length;
       window.atualizarDashboard();
+      renderListaAgendamentos();
+    }
 
-      if (!agendamentos.length) {
+    function agendamentoCombinaPesquisa(item, termo) {
+      const arquivosItem = Array.isArray(item.arquivos) && item.arquivos.length
+        ? item.arquivos
+        : (item.arquivo ? [item.arquivo] : []);
+      return textoIncluiBusca([
+        item.contatoNome,
+        item.telefone,
+        item.status,
+        item.tipoEnvio,
+        item.mensagem,
+        item.mensagemFinal,
+        formatarData(item.dataHora),
+        ...arquivosItem.map(file => file.nomeOriginal || file.nome || "")
+      ].join(" "), termo);
+    }
+
+    function renderListaAgendamentos() {
+      const termo = pesquisaAgendamentos ? pesquisaAgendamentos.value : "";
+      const agendamentosFiltrados = agendamentosCache.filter(item => agendamentoCombinaPesquisa(item, termo));
+
+      if (!agendamentosCache.length) {
         listaAgendamentos.innerHTML = `<div class="empty-state">Nenhum agendamento cadastrado ainda.</div>`;
         return;
       }
+      if (!agendamentosFiltrados.length) {
+        listaAgendamentos.innerHTML = `<div class="empty-state">Nenhum envio encontrado para esta pesquisa.</div>`;
+        return;
+      }
 
-      listaAgendamentos.innerHTML = agendamentos.map((item) => {
+      listaAgendamentos.innerHTML = agendamentosFiltrados.map((item) => {
         const arquivosItem = Array.isArray(item.arquivos) && item.arquivos.length
           ? item.arquivos
           : (item.arquivo ? [item.arquivo] : []);
@@ -2756,6 +2857,7 @@
 
     salvarAgendamento.addEventListener("click", salvarNovoAgendamento);
     enviarAgora.addEventListener("click", enviarMensagemAgora);
+    if (pesquisaAgendamentos) pesquisaAgendamentos.addEventListener("input", renderListaAgendamentos);
     [agMensagem, agBannerTitulo, agBannerDescricao, agBotaoTexto, agBotaoLink].forEach((el) => {
       if (el) el.addEventListener("input", atualizarPreviewCampanha);
     });
