@@ -1919,8 +1919,17 @@
       if (json.ok) renderInboxConversa(json.conversa);
     }
 
+    function arquivoInboxParaDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
     async function uploadArquivoInbox(file) {
-      const dataUrl = await arquivoParaDataUrl(file);
+      const dataUrl = await arquivoInboxParaDataUrl(file);
       const resposta = await fetch('/api/upload/agendamento', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
