@@ -1670,12 +1670,7 @@
       }).join('');
     }
 
-    async function carregarRespostasRapidas(user = usuarioAtual) {
-      if (!user) {
-        respostasRapidasCache = [];
-        renderRespostasRapidas();
-        return;
-      }
+    async function carregarRespostasRapidas() {
       try {
         const resposta = await fetch('/api/respostas-rapidas');
         const json = await resposta.json();
@@ -1690,10 +1685,6 @@
     }
 
     async function salvarRespostaRapidaInbox() {
-      if (!usuarioAtual) {
-        alert('Entre no painel antes de salvar respostas rápidas.');
-        return;
-      }
       const atalho = $('respostaRapidaAtalho')?.value.trim();
       const texto = $('respostaRapidaTexto')?.value.trim();
       if (!atalho || !texto) {
