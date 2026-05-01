@@ -324,6 +324,14 @@ function registrarSaidaInbox(chatId, texto, origem = "bot", message = null) {
   });
 }
 
+function normalizarInboxChatId(value) {
+  const chatId = String(value || "").trim();
+  if (!chatId) return "";
+  if (/@(c|g)\.us$/.test(chatId) || chatId.endsWith("@lid")) return chatId;
+  const numero = chatId.replace(/\D/g, "");
+  return numero ? `${numero}@c.us` : "";
+}
+
 function rowMatchesConditionalQuery(row, camposBusca, query) {
   return camposBusca.some((campo) => {
     const value = normalizeText(row[campo]);
@@ -609,7 +617,7 @@ app.get("/api/inbox", (req, res) => {
 });
 
 app.get("/api/inbox/conversa", (req, res) => {
-  const chatId = String(req.query.chatId || "");
+  const chatId = normalizarInboxChatId(req.query.chatId || "");
   const conversa = getInboxConversa(chatId);
   res.json({ ok: true, conversa });
 });
@@ -619,20 +627,38 @@ app.post("/api/inbox/send", async (req, res) => {
     if (!whatsappClient || !whatsappConectado) {
       return res.status(400).json({ ok: false, erro: "WhatsApp não está conectado" });
     }
-    const chatId = String(req.body.chatId || "");
+    const chatId = normalizarInboxChatId(req.body.chatId || "");
     const texto = String(req.body.texto || "").trim();
-    if (!chatId || !chatId.endsWith("@c.us")) return res.status(400).json({ ok: false, erro: "Conversa inválida" });
-    if (!texto) return res.status(400).json({ ok: false, erro: "Digite uma mensagem" });
+    const arquivo = req.body.arquivo || null;
+    if (!chatId) return res.status(400).json({ ok: false, erro: "Conversa inválida" });
+    if (!texto && !arquivo) return res.status(400).json({ ok: false, erro: "Digite uma mensagem ou selecione um arquivo" });
 
-    const sent = await whatsappClient.sendMessage(chatId, texto);
+    let sent;
+    let textoInbox = texto;
+    if (arquivo && arquivo.caminho) {
+      const fullPath = resolveUploadPath(arquivo.caminho);
+      if (!fullPath || !fs.existsSync(fullPath)) {
+        return res.status(400).json({ ok: false, erro: "Arquivo não encontrado" });
+      }
+      const media = new MessageMedia(
+        arquivo.tipo || "application/octet-stream",
+        fs.readFileSync(fullPath).toString("base64"),
+        arquivo.nomeOriginal || path.basename(fullPath)
+      );
+      sent = await whatsappClient.sendMessage(chatId, media, texto ? { caption: texto } : undefined);
+      textoInbox = texto || `[arquivo] ${arquivo.nomeOriginal || arquivo.nome || path.basename(fullPath)}`;
+    } else {
+      sent = await whatsappClient.sendMessage(chatId, texto);
+    }
     silencio.registrarMensagemDoBot(sent);
     silencio.silenciarChat(chatId);
     const conversa = registrarInbox({
       chatId,
       telefone: chatId.replace(/\D/g, ""),
       direcao: "out",
-      texto,
+      texto: textoInbox,
       origem: "humano",
+      tipo: arquivo ? "file" : "text",
       messageId: sent?.id?._serialized || null,
     });
     if (conversa) {
@@ -650,7 +676,7 @@ app.post("/api/inbox/send", async (req, res) => {
 });
 
 app.post("/api/inbox/status", (req, res) => {
-  const chatId = String(req.body.chatId || "");
+  const chatId = normalizarInboxChatId(req.body.chatId || "");
   const status = String(req.body.status || "novo");
   const permitidos = new Set(["novo", "em_atendimento", "aguardando_cliente", "resolvido", "bot"]);
   if (!chatId || !permitidos.has(status)) return res.status(400).json({ ok: false, erro: "Status inválido" });
@@ -659,7 +685,7 @@ app.post("/api/inbox/status", (req, res) => {
 });
 
 app.post("/api/inbox/assumir", (req, res) => {
-  const chatId = String(req.body.chatId || "");
+  const chatId = normalizarInboxChatId(req.body.chatId || "");
   if (!chatId) return res.status(400).json({ ok: false, erro: "Conversa inválida" });
   silencio.silenciarChat(chatId);
   const conversa = atualizarInboxConversa(chatId, {
@@ -671,7 +697,7 @@ app.post("/api/inbox/assumir", (req, res) => {
 });
 
 app.post("/api/inbox/liberar-bot", (req, res) => {
-  const chatId = String(req.body.chatId || "");
+  const chatId = normalizarInboxChatId(req.body.chatId || "");
   if (!chatId) return res.status(400).json({ ok: false, erro: "Conversa inválida" });
   silencio.desilenciarChat(chatId);
   const conversa = atualizarInboxConversa(chatId, {

@@ -1107,6 +1107,7 @@
                 <div id="respostasRapidasLista" class="quick-reply-list"></div>
                 <div id="respostaRapidaFeedback" class="contact-meta"></div>
               </div>
+              <input type="file" id="inboxArquivo" style="display:none;" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.jwpub">
               <div class="inbox-compose-main">
                 <textarea id="inboxTexto" placeholder="Digite sua resposta pelo painel"></textarea>
                 <span id="inboxFeedback" class="contact-meta"></span>
@@ -1918,18 +1919,30 @@
       if (json.ok) renderInboxConversa(json.conversa);
     }
 
-    async function enviarInboxResposta() {
+    async function uploadArquivoInbox(file) {
+      const dataUrl = await arquivoParaDataUrl(file);
+      const resposta = await fetch('/api/upload/agendamento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome: file.name, tipo: file.type, dataUrl })
+      });
+      const json = await resposta.json();
+      if (!json.ok) throw new Error(json.erro || `Erro ao salvar ${file.name}`);
+      return json.arquivo;
+    }
+
+    async function enviarInboxResposta(arquivo = null) {
       const conversa = inboxState.selecionada;
       const texto = $('inboxTexto')?.value.trim();
       if (!conversa) return alert('Selecione uma conversa.');
-      if (!texto) return alert('Digite uma resposta.');
+      if (!texto && !arquivo) return alert('Digite uma mensagem ou selecione um arquivo.');
       $('inboxEnviar').disabled = true;
-      $('inboxFeedback').textContent = 'Enviando...';
+      $('inboxFeedback').textContent = arquivo ? 'Enviando arquivo...' : 'Enviando...';
       try {
         const resposta = await fetch('/api/inbox/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chatId: conversa.chatId, texto })
+          body: JSON.stringify({ chatId: conversa.chatId, texto, arquivo })
         });
         const json = await resposta.json();
         if (!json.ok) throw new Error(json.erro || 'Erro ao enviar');
@@ -1940,6 +1953,29 @@
         $('inboxFeedback').textContent = error.message || 'Erro ao enviar.';
       } finally {
         $('inboxEnviar').disabled = false;
+      }
+    }
+
+    function escolherArquivoInbox() {
+      if (!$('inboxArquivo')) return;
+      $('inboxArquivo').value = '';
+      $('inboxArquivo').click();
+    }
+
+    async function enviarArquivoInboxSelecionado() {
+      const file = $('inboxArquivo')?.files?.[0];
+      if (!file) return;
+      if (!inboxState.selecionada) {
+        alert('Selecione uma conversa.');
+        return;
+      }
+      try {
+        $('inboxFeedback').textContent = `Preparando arquivo: ${file.name}`;
+        const arquivo = await uploadArquivoInbox(file);
+        await enviarInboxResposta(arquivo);
+        alternarMenuInboxAcoes(false);
+      } catch (error) {
+        $('inboxFeedback').textContent = error.message || 'Erro ao enviar arquivo.';
       }
     }
 
@@ -2049,8 +2085,9 @@
       if ($('respostaRapidaSelect')) $('respostaRapidaSelect').focus();
     });
     if ($('abrirArquivoInbox')) $('abrirArquivoInbox').addEventListener('click', () => {
-      if ($('respostaRapidaFeedback')) $('respostaRapidaFeedback').textContent = 'Envio de arquivo no atendimento manual será liberado na próxima etapa.';
+      escolherArquivoInbox();
     });
+    if ($('inboxArquivo')) $('inboxArquivo').addEventListener('change', enviarArquivoInboxSelecionado);
     if ($('usarRespostaRapida')) $('usarRespostaRapida').addEventListener('click', usarRespostaRapidaSelecionada);
     if ($('abrirRespostaRapidaForm')) $('abrirRespostaRapidaForm').addEventListener('click', () => abrirFormularioRespostaRapida());
     if ($('cancelarRespostaRapida')) $('cancelarRespostaRapida').addEventListener('click', fecharFormularioRespostaRapida);
