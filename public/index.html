@@ -628,6 +628,47 @@
       text-align: center;
       padding: 18px;
     }
+    .quick-replies {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      background: var(--panel-soft);
+    }
+    .quick-reply-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 8px;
+      align-items: end;
+    }
+    .quick-reply-form {
+      display: none;
+      grid-template-columns: minmax(120px, 0.4fr) minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: end;
+    }
+    .quick-reply-form.ativo {
+      display: grid;
+    }
+    .quick-reply-list {
+      display: grid;
+      gap: 6px;
+    }
+    .quick-reply-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      background: var(--panel-bg);
+      font-size: 0.86rem;
+    }
+    .quick-reply-item span {
+      color: var(--text-muted);
+    }
     .link-pill {
       display: inline-block;
       margin-top: 10px;
@@ -946,6 +987,34 @@
               <div class="inbox-empty">Escolha uma conversa para visualizar o histórico.</div>
             </div>
             <div class="inbox-composer">
+              <div class="quick-replies">
+                <div class="quick-reply-row">
+                  <div class="form-group" style="margin-bottom:0;">
+                    <label for="respostaRapidaSelect">Resposta rápida</label>
+                    <select id="respostaRapidaSelect">
+                      <option value="">Selecione uma resposta pronta</option>
+                    </select>
+                  </div>
+                  <button class="btn btn-small btn-primary" id="usarRespostaRapida" type="button">Usar</button>
+                  <button class="btn btn-small btn-success" id="abrirRespostaRapidaForm" type="button">+ Nova</button>
+                </div>
+                <div id="respostaRapidaForm" class="quick-reply-form">
+                  <div class="form-group" style="margin-bottom:0;">
+                    <label for="respostaRapidaAtalho">Atalho</label>
+                    <input type="text" id="respostaRapidaAtalho" placeholder="pix, obrigado, horario">
+                  </div>
+                  <div class="form-group" style="margin-bottom:0;">
+                    <label for="respostaRapidaTexto">Mensagem</label>
+                    <textarea id="respostaRapidaTexto" placeholder="Digite a resposta pronta. Use {nome} e {telefone} se quiser."></textarea>
+                  </div>
+                  <div class="schedule-actions" style="margin-top:0;">
+                    <button class="btn btn-small btn-primary" id="salvarRespostaRapida" type="button">Salvar</button>
+                    <button class="btn btn-small" id="cancelarRespostaRapida" type="button" style="background:#475569; color:white;">Cancelar</button>
+                  </div>
+                </div>
+                <div id="respostasRapidasLista" class="quick-reply-list"></div>
+                <div id="respostaRapidaFeedback" class="contact-meta"></div>
+              </div>
               <textarea id="inboxTexto" placeholder="Digite sua resposta pelo painel"></textarea>
               <div class="schedule-actions">
                 <button class="btn btn-success" id="inboxEnviar">Enviar resposta</button>
@@ -1506,6 +1575,9 @@
       selecionada: null,
       carregando: false
     };
+    let respostasRapidasCache = [];
+    let cancelarEscutaRespostasRapidas = null;
+    let respostaRapidaEditandoId = null;
 
     function inboxNormalize(value) {
       return String(value || '')
@@ -1530,6 +1602,143 @@
       if (!value) return '';
       const date = new Date(value);
       return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('pt-BR');
+    }
+
+    function aplicarVariaveisInbox(texto) {
+      const conversa = inboxState.selecionada || {};
+      const dados = {
+        nome: conversa.nome || conversa.telefone || '',
+        telefone: conversa.telefone || '',
+        status: inboxStatusLabel(conversa.status || 'novo')
+      };
+      return String(texto || '').replace(/\{([^}]+)\}/g, (_, chave) => {
+        const key = String(chave || '').trim().toLowerCase();
+        return Object.prototype.hasOwnProperty.call(dados, key) ? dados[key] : '';
+      });
+    }
+
+    function limparFormularioRespostaRapida() {
+      respostaRapidaEditandoId = null;
+      if ($('respostaRapidaAtalho')) $('respostaRapidaAtalho').value = '';
+      if ($('respostaRapidaTexto')) $('respostaRapidaTexto').value = '';
+      if ($('salvarRespostaRapida')) $('salvarRespostaRapida').textContent = 'Salvar';
+    }
+
+    function abrirFormularioRespostaRapida(resposta = null) {
+      if ($('respostaRapidaForm')) $('respostaRapidaForm').classList.add('ativo');
+      if (resposta) {
+        respostaRapidaEditandoId = resposta.id;
+        if ($('respostaRapidaAtalho')) $('respostaRapidaAtalho').value = resposta.atalho || '';
+        if ($('respostaRapidaTexto')) $('respostaRapidaTexto').value = resposta.texto || '';
+        if ($('salvarRespostaRapida')) $('salvarRespostaRapida').textContent = 'Salvar edição';
+      } else {
+        limparFormularioRespostaRapida();
+      }
+      if ($('respostaRapidaAtalho')) $('respostaRapidaAtalho').focus();
+    }
+
+    function fecharFormularioRespostaRapida() {
+      if ($('respostaRapidaForm')) $('respostaRapidaForm').classList.remove('ativo');
+      limparFormularioRespostaRapida();
+    }
+
+    function renderRespostasRapidas() {
+      const select = $('respostaRapidaSelect');
+      const lista = $('respostasRapidasLista');
+      if (select) {
+        const selecionado = select.value;
+        select.innerHTML = '<option value="">Selecione uma resposta pronta</option>' + respostasRapidasCache.map((item) => {
+          return `<option value="${escapeHtml(item.id)}">${escapeHtml(item.atalho || 'Sem atalho')}</option>`;
+        }).join('');
+        select.value = respostasRapidasCache.some(item => item.id === selecionado) ? selecionado : '';
+      }
+      if (!lista) return;
+      if (!respostasRapidasCache.length) {
+        lista.innerHTML = '<div class="contact-meta">Nenhuma resposta rápida cadastrada ainda.</div>';
+        return;
+      }
+      lista.innerHTML = respostasRapidasCache.slice(0, 5).map((item) => {
+        const resumo = String(item.texto || '').replace(/\s+/g, ' ').slice(0, 70);
+        return `
+          <div class="quick-reply-item">
+            <div><strong>${escapeHtml(item.atalho || 'Sem atalho')}</strong> <span>${escapeHtml(resumo)}</span></div>
+            <div class="table-actions">
+              <button class="btn btn-small btn-primary" data-edit-resposta-rapida="${escapeHtml(item.id)}">Editar</button>
+              <button class="btn btn-small" data-delete-resposta-rapida="${escapeHtml(item.id)}" style="background:#dc2626; color:white;">Excluir</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function escutarRespostasRapidas(user) {
+      if (cancelarEscutaRespostasRapidas) cancelarEscutaRespostasRapidas();
+      if (!user) {
+        respostasRapidasCache = [];
+        renderRespostasRapidas();
+        return;
+      }
+      const respostasQuery = query(collection(db, 'respostasRapidas'), where('uid', '==', user.uid));
+      cancelarEscutaRespostasRapidas = onSnapshot(respostasQuery, (snapshot) => {
+        const itens = [];
+        snapshot.forEach((item) => itens.push({ id: item.id, ...item.data() }));
+        itens.sort((a, b) => (a.atalho || '').localeCompare(b.atalho || '', 'pt-BR'));
+        respostasRapidasCache = itens;
+        renderRespostasRapidas();
+      }, () => {
+        if ($('respostaRapidaFeedback')) $('respostaRapidaFeedback').textContent = 'Não foi possível carregar respostas rápidas.';
+      });
+    }
+
+    async function salvarRespostaRapidaInbox() {
+      if (!usuarioAtual) {
+        alert('Entre no painel antes de salvar respostas rápidas.');
+        return;
+      }
+      const atalho = $('respostaRapidaAtalho')?.value.trim();
+      const texto = $('respostaRapidaTexto')?.value.trim();
+      if (!atalho || !texto) {
+        alert('Informe atalho e mensagem.');
+        return;
+      }
+      if ($('salvarRespostaRapida')) $('salvarRespostaRapida').disabled = true;
+      try {
+        if (respostaRapidaEditandoId) {
+          await updateDoc(doc(db, 'respostasRapidas', respostaRapidaEditandoId), {
+            atalho,
+            texto,
+            atualizadoEm: serverTimestamp()
+          });
+        } else {
+          await addDoc(collection(db, 'respostasRapidas'), {
+            uid: usuarioAtual.uid,
+            atalho,
+            texto,
+            criadoEm: serverTimestamp(),
+            atualizadoEm: serverTimestamp()
+          });
+        }
+        if ($('respostaRapidaFeedback')) $('respostaRapidaFeedback').textContent = 'Resposta rápida salva.';
+        fecharFormularioRespostaRapida();
+      } catch (error) {
+        alert('Não foi possível salvar a resposta rápida. Confira as regras do Firestore.');
+      } finally {
+        if ($('salvarRespostaRapida')) $('salvarRespostaRapida').disabled = false;
+      }
+    }
+
+    function usarRespostaRapidaSelecionada() {
+      const id = $('respostaRapidaSelect')?.value;
+      const item = respostasRapidasCache.find(resposta => resposta.id === id);
+      if (!item) {
+        if ($('respostaRapidaFeedback')) $('respostaRapidaFeedback').textContent = 'Selecione uma resposta rápida.';
+        return;
+      }
+      if ($('inboxTexto')) {
+        $('inboxTexto').value = aplicarVariaveisInbox(item.texto || '');
+        $('inboxTexto').focus();
+      }
+      if ($('respostaRapidaFeedback')) $('respostaRapidaFeedback').textContent = 'Resposta aplicada no campo de mensagem.';
     }
 
     function inboxTextoBusca(conversa) {
@@ -1746,6 +1955,26 @@
     if ($('inboxStatusSelect')) $('inboxStatusSelect').addEventListener('change', () => atualizarInboxStatus($('inboxStatusSelect').value));
     if ($('inboxAssumir')) $('inboxAssumir').addEventListener('click', assumirInboxConversa);
     if ($('inboxLiberarBot')) $('inboxLiberarBot').addEventListener('click', liberarInboxBot);
+    if ($('usarRespostaRapida')) $('usarRespostaRapida').addEventListener('click', usarRespostaRapidaSelecionada);
+    if ($('abrirRespostaRapidaForm')) $('abrirRespostaRapidaForm').addEventListener('click', () => abrirFormularioRespostaRapida());
+    if ($('cancelarRespostaRapida')) $('cancelarRespostaRapida').addEventListener('click', fecharFormularioRespostaRapida);
+    if ($('salvarRespostaRapida')) $('salvarRespostaRapida').addEventListener('click', salvarRespostaRapidaInbox);
+    if ($('respostasRapidasLista')) {
+      $('respostasRapidasLista').addEventListener('click', async (event) => {
+        const botaoEditar = event.target.closest('[data-edit-resposta-rapida]');
+        const botaoExcluir = event.target.closest('[data-delete-resposta-rapida]');
+        if (botaoEditar) {
+          const item = respostasRapidasCache.find(resposta => resposta.id === botaoEditar.dataset.editRespostaRapida);
+          if (item) abrirFormularioRespostaRapida(item);
+          return;
+        }
+        if (botaoExcluir) {
+          if (!confirm('Excluir esta resposta rápida?')) return;
+          await deleteDoc(doc(db, 'respostasRapidas', botaoExcluir.dataset.deleteRespostaRapida));
+          if (respostaRapidaEditandoId === botaoExcluir.dataset.deleteRespostaRapida) fecharFormularioRespostaRapida();
+        }
+      });
+    }
     carregarInbox();
 
     // Carregar config
@@ -3598,9 +3827,11 @@
         loginSenha.value = "";
         limparFormularioContato();
         limparFormularioAgendamento();
+        fecharFormularioRespostaRapida();
       }
       escutarContatos(user);
       escutarAgendamentos(user);
+      escutarRespostasRapidas(user);
     });
   </script>
 </body>
