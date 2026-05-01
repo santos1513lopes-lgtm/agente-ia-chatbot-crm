@@ -540,6 +540,53 @@ app.get("/api/config/full", (req, res) => {
   res.json(config);
 });
 
+app.get("/api/respostas-rapidas", (req, res) => {
+  config = loadConfig();
+  res.json({ ok: true, respostas: Array.isArray(config.respostasRapidas) ? config.respostasRapidas : [] });
+});
+
+app.post("/api/respostas-rapidas", (req, res) => {
+  config = loadConfig();
+  const id = String(req.body.id || "").trim();
+  const atalho = String(req.body.atalho || "").trim();
+  const texto = String(req.body.texto || "").trim();
+  if (!atalho || !texto) {
+    return res.status(400).json({ ok: false, erro: "Atalho e mensagem são obrigatórios" });
+  }
+
+  const respostas = Array.isArray(config.respostasRapidas) ? config.respostasRapidas : [];
+  const agora = new Date().toISOString();
+  let resposta;
+  if (id) {
+    const index = respostas.findIndex((item) => item.id === id);
+    if (index === -1) return res.status(404).json({ ok: false, erro: "Resposta rápida não encontrada" });
+    resposta = { ...respostas[index], atalho, texto, atualizadoEm: agora };
+    respostas[index] = resposta;
+  } else {
+    resposta = {
+      id: `resp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      atalho,
+      texto,
+      criadoEm: agora,
+      atualizadoEm: agora,
+    };
+    respostas.push(resposta);
+  }
+  config.respostasRapidas = respostas;
+  saveConfig(config);
+  res.json({ ok: true, resposta, respostas });
+});
+
+app.delete("/api/respostas-rapidas/:id", (req, res) => {
+  config = loadConfig();
+  const id = String(req.params.id || "").trim();
+  const respostas = Array.isArray(config.respostasRapidas) ? config.respostasRapidas : [];
+  const filtradas = respostas.filter((item) => item.id !== id);
+  config.respostasRapidas = filtradas;
+  saveConfig(config);
+  res.json({ ok: true, respostas: filtradas });
+});
+
 app.get("/api/silencio-chats", (req, res) => {
   res.json({ ok: true, chats: silencio.listar() });
 });

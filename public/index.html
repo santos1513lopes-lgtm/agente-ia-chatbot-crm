@@ -1576,7 +1576,6 @@
       carregando: false
     };
     let respostasRapidasCache = [];
-    let cancelarEscutaRespostasRapidas = null;
     let respostaRapidaEditandoId = null;
 
     function inboxNormalize(value) {
@@ -1671,23 +1670,23 @@
       }).join('');
     }
 
-    function escutarRespostasRapidas(user) {
-      if (cancelarEscutaRespostasRapidas) cancelarEscutaRespostasRapidas();
+    async function carregarRespostasRapidas(user = usuarioAtual) {
       if (!user) {
         respostasRapidasCache = [];
         renderRespostasRapidas();
         return;
       }
-      const respostasQuery = query(collection(db, 'respostasRapidas'), where('uid', '==', user.uid));
-      cancelarEscutaRespostasRapidas = onSnapshot(respostasQuery, (snapshot) => {
-        const itens = [];
-        snapshot.forEach((item) => itens.push({ id: item.id, ...item.data() }));
-        itens.sort((a, b) => (a.atalho || '').localeCompare(b.atalho || '', 'pt-BR'));
-        respostasRapidasCache = itens;
+      try {
+        const resposta = await fetch('/api/respostas-rapidas');
+        const json = await resposta.json();
+        if (!json.ok) throw new Error(json.erro || 'Erro ao carregar respostas rápidas.');
+        respostasRapidasCache = (json.respostas || [])
+          .slice()
+          .sort((a, b) => (a.atalho || '').localeCompare(b.atalho || '', 'pt-BR'));
         renderRespostasRapidas();
-      }, () => {
+      } catch (error) {
         if ($('respostaRapidaFeedback')) $('respostaRapidaFeedback').textContent = 'Não foi possível carregar respostas rápidas.';
-      });
+      }
     }
 
     async function salvarRespostaRapidaInbox() {
@@ -1703,25 +1702,21 @@
       }
       if ($('salvarRespostaRapida')) $('salvarRespostaRapida').disabled = true;
       try {
-        if (respostaRapidaEditandoId) {
-          await updateDoc(doc(db, 'respostasRapidas', respostaRapidaEditandoId), {
-            atalho,
-            texto,
-            atualizadoEm: serverTimestamp()
-          });
-        } else {
-          await addDoc(collection(db, 'respostasRapidas'), {
-            uid: usuarioAtual.uid,
-            atalho,
-            texto,
-            criadoEm: serverTimestamp(),
-            atualizadoEm: serverTimestamp()
-          });
-        }
+        const resposta = await fetch('/api/respostas-rapidas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: respostaRapidaEditandoId, atalho, texto })
+        });
+        const json = await resposta.json();
+        if (!json.ok) throw new Error(json.erro || 'Erro ao salvar resposta rápida.');
+        respostasRapidasCache = (json.respostas || [])
+          .slice()
+          .sort((a, b) => (a.atalho || '').localeCompare(b.atalho || '', 'pt-BR'));
+        renderRespostasRapidas();
         if ($('respostaRapidaFeedback')) $('respostaRapidaFeedback').textContent = 'Resposta rápida salva.';
         fecharFormularioRespostaRapida();
       } catch (error) {
-        alert('Não foi possível salvar a resposta rápida. Confira as regras do Firestore.');
+        alert(error.message || 'Não foi possível salvar a resposta rápida.');
       } finally {
         if ($('salvarRespostaRapida')) $('salvarRespostaRapida').disabled = false;
       }
@@ -1970,7 +1965,15 @@
         }
         if (botaoExcluir) {
           if (!confirm('Excluir esta resposta rápida?')) return;
-          await deleteDoc(doc(db, 'respostasRapidas', botaoExcluir.dataset.deleteRespostaRapida));
+          const resposta = await fetch(`/api/respostas-rapidas/${encodeURIComponent(botaoExcluir.dataset.deleteRespostaRapida)}`, {
+            method: 'DELETE'
+          });
+          const json = await resposta.json();
+          if (!json.ok) throw new Error(json.erro || 'Erro ao excluir resposta rápida.');
+          respostasRapidasCache = (json.respostas || [])
+            .slice()
+            .sort((a, b) => (a.atalho || '').localeCompare(b.atalho || '', 'pt-BR'));
+          renderRespostasRapidas();
           if (respostaRapidaEditandoId === botaoExcluir.dataset.deleteRespostaRapida) fecharFormularioRespostaRapida();
         }
       });
@@ -3831,7 +3834,7 @@
       }
       escutarContatos(user);
       escutarAgendamentos(user);
-      escutarRespostasRapidas(user);
+      carregarRespostasRapidas(user);
     });
   </script>
 </body>
